@@ -1,0 +1,19 @@
+[gedit]
+buildarea = [200, 200]
+scale = 3
+showprevious = False
+showmoves = True
+uselinenbrs = True
+lastdirectory = O:\stl files
+platemps = [60, 185]
+abstemps = [110, 225]
+nextruders = 1
+acceleration = 1500
+showretractions = True
+showrevretractions = True
+layerheight = 0.2
+printers = dbot,cuboid
+dbot.apikey = xxxxx
+dbot.ipaddr = 192.168.1.190
+cuboid.apikey = xxxxx
+cuboid.ipaddr = 192.168.1.191

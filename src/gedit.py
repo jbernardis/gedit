@@ -1,0 +1,1164 @@
+import wx
+import os
+import re
+import time  
+import inspect
+
+cmdFolder = os.path.realpath(os.path.abspath(os.path.split(inspect.getfile( inspect.currentframe() ))[0]))
+
+from settings import Settings
+from cnc import CNC
+from gcframe import GcFrame, RETRACTIONCOLOR, REVRETRACTIONCOLOR, PRINTCOLOR
+from gclistctrl import GcodeListCtrl
+from shiftmodel import ShiftModelDlg 
+from modtemps import ModifyTempsDlg
+from modspeed import ModifySpeedDlg
+from editgcode import EditGCodeDlg
+from filamentchange import FilamentChangeDlg
+from savelayer import SaveLayerDlg
+from images import Images
+from tools import formatElapsed
+from properties import PropertiesDlg
+from propenums import PropertyEnum
+from printerserver import PrinterServer
+from uploaddest import UploadDestinationDlg
+from downloadsrc import DownloadSourceDlg 
+
+gcRegex = re.compile("[-]?\d+[.]?\d*")
+BUTTONDIM = (48, 48)
+TITLE_PREFIX = "G Code Analyze/Edit"
+reX = re.compile("(.*[xX])([0-9\.]+)(.*)")
+reY = re.compile("(.*[yY])([0-9\.]+)(.*)")
+reZ = re.compile("(.*[zZ])([0-9\.]+)(.*)")
+reS = re.compile("(.*[sS])([0-9\.]+)(.*)")
+reF = re.compile("(.*[fF])([0-9\.]+)(.*)")
+reE = re.compile("(.*[eE])([0-9\.]+)(.*)")
+
+class LegendDlg(wx.Frame):
+	def __init__(self, parent):
+		wx.Frame.__init__(self, parent, wx.ID_ANY, "Legend", size=(500, 500))
+		self.parent = parent
+		self.SetBackgroundColour(wx.Colour(255, 255, 255))
+		self.Bind(wx.EVT_CLOSE, self.onClose)
+		
+		lFont = wx.Font(16, wx.FONTFAMILY_SWISS, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
+				
+		sz = wx.BoxSizer(wx.VERTICAL)
+		sz.AddSpacer(20)
+		
+		st = wx.StaticText(self, wx.ID_ANY, "Print Speed < 20 mm/s")
+		st.SetForegroundColour(PRINTCOLOR[0])
+		st.SetFont(lFont)
+		sz.Add(st)
+		sz.AddSpacer(10)
+		
+		st = wx.StaticText(self, wx.ID_ANY, "Print Speed < 40 mm/s")
+		st.SetForegroundColour(PRINTCOLOR[1])
+		st.SetFont(lFont)
+		sz.Add(st)
+		sz.AddSpacer(10)
+		
+		st = wx.StaticText(self, wx.ID_ANY, "Print Speed < 60 mm/s")
+		st.SetForegroundColour(PRINTCOLOR[2])
+		st.SetFont(lFont)
+		sz.Add(st)
+		sz.AddSpacer(10)
+		
+		st = wx.StaticText(self, wx.ID_ANY, "Print Speed >= 60 mm/s")
+		st.SetForegroundColour(PRINTCOLOR[3])
+		st.SetFont(lFont)
+		sz.Add(st)
+		sz.AddSpacer(20)
+		
+		st = wx.StaticText(self, wx.ID_ANY, "Retractions")
+		st.SetForegroundColour(RETRACTIONCOLOR)
+		st.SetFont(lFont)
+		sz.Add(st)
+		sz.AddSpacer(10)
+		
+		st = wx.StaticText(self, wx.ID_ANY, "Reverse Retractions")
+		st.SetForegroundColour(REVRETRACTIONCOLOR)
+		st.SetFont(lFont)
+		sz.Add(st)
+		
+		sz.AddSpacer(20)
+		
+		hsz = wx.BoxSizer(wx.HORIZONTAL)
+		hsz.AddSpacer(20)
+		hsz.Add(sz)
+		hsz.AddSpacer(20)
+		
+		self.SetSizer(hsz)
+		
+		self.Layout()
+		self.Fit()
+		self.Show()
+
+	def onClose(self, evt):
+		self.parent.legendClosed()
+		self.Destroy()
+
+class GEditDlg(wx.Frame):
+	def __init__(self):
+		wx.Frame.__init__(self, None, wx.ID_ANY, TITLE_PREFIX, size=(600, 600))
+		self.SetBackgroundColour(wx.Colour(40, 100, 160))
+		self.Show()
+		ico = wx.Icon(os.path.join(cmdFolder, "images", "geditico.png"), wx.BITMAP_TYPE_PNG)
+		self.SetIcon(ico)
+		
+		self.Bind(wx.EVT_CLOSE, self.onClose)
+		self.settings = Settings(cmdFolder)
+		self.propDlg = None
+		self.legend = None
+		
+		self.images = Images(os.path.join(cmdFolder, "images"))
+		
+		self.shiftX = 0
+		self.shiftY = 0
+		self.modified = False
+		self.filename = None
+		self.downloadSource = None
+		
+		self.gObj = self.loadGCode(self.filename)
+		if self.gObj is not None:
+			self.updateTitle()
+
+		self.gcFrame = GcFrame(self, self.gObj, self.settings)
+		self.stLayerText = wx.StaticText(self, wx.ID_ANY, "Layer Height:   0.00")
+
+		ht = self.gcFrame.GetSize().Get()[1] - 2*BUTTONDIM[1] - 20
+		
+		if self.gObj is None:
+			lmax = 1
+		else:
+			lmax = self.gObj.layerCount()-1
+		
+		self.slLayers = wx.Slider(
+			self, wx.ID_ANY, 0, 0, 1000, size=(-1, ht), 
+			style=wx.SL_VERTICAL | wx.SL_AUTOTICKS | wx.SL_LABELS | wx.SL_INVERSE)
+		self.Bind(wx.EVT_SCROLL, self.onLayerScroll, self.slLayers)
+		if self.gObj is None:
+			self.slLayers.Enable(False)
+			
+		self.lcGCode = GcodeListCtrl(self, self.gcode, self.images)
+		self.lcGCode.setLineNumbers(self.settings.uselinenbrs)
+		self.currentLayer = 0
+		self.setLayerText()
+		if self.gObj is not None:
+			self.lcGCode.setLayerBounds(self.gObj.getGCodeLines(0))
+			
+		self.bShift = wx.BitmapButton(self, wx.ID_ANY, self.images.pngShift, size=BUTTONDIM)
+		self.bShift.SetToolTip("Move model in x/y direction")
+		self.Bind(wx.EVT_BUTTON, self.doShiftModel, self.bShift)
+		self.bShift.Enable(False)
+
+		self.bModTemp = wx.BitmapButton(self, wx.ID_ANY, self.images.pngModtemp, size=BUTTONDIM)
+		self.bModTemp.SetToolTip("Modify Temperatures")
+		self.Bind(wx.EVT_BUTTON, self.onModTemps, self.bModTemp)
+		self.bModTemp.Enable(False)
+				
+		self.bModSpeed = wx.BitmapButton(self, wx.ID_ANY, self.images.pngModspeed, size=BUTTONDIM)
+		self.bModSpeed.SetToolTip("Modify Speed")
+		self.Bind(wx.EVT_BUTTON, self.onModSpeed, self.bModSpeed)
+		self.bModSpeed.Enable(False)
+		
+		self.bFilChange = wx.BitmapButton(self, wx.ID_ANY, self.images.pngFilchange, size=BUTTONDIM)
+		self.bFilChange.SetToolTip("Insert G Code to assist with changing filament")
+		self.Bind(wx.EVT_BUTTON, self.onFilChange, self.bFilChange)
+		self.bFilChange.Enable(False)
+		
+		self.bEdit = wx.BitmapButton(self, wx.ID_ANY, self.images.pngEdit, size=BUTTONDIM)
+		self.bEdit.SetToolTip("Free edit G Code")
+		self.Bind(wx.EVT_BUTTON, self.onEditGCode, self.bEdit)
+		self.bEdit.Enable(False)
+		
+		self.bUp = wx.BitmapButton(self, wx.ID_ANY, self.images.pngUp, size=BUTTONDIM)
+		self.bUp.SetToolTip("Move up one layer")
+		self.Bind(wx.EVT_BUTTON, self.onUp, self.bUp)
+		self.bUp.Enable(False)
+		
+		self.bDown = wx.BitmapButton(self, wx.ID_ANY, self.images.pngDown, size=BUTTONDIM)
+		self.bDown.SetToolTip("Move down one layer")
+		self.Bind(wx.EVT_BUTTON, self.onDown, self.bDown)
+		self.bDown.Enable(False)
+		
+		self.bInfo = wx.BitmapButton(self, wx.ID_ANY, self.images.pngInfo, size=BUTTONDIM)
+		self.bInfo.SetToolTip("Information")
+		self.Bind(wx.EVT_BUTTON, self.onInfo, self.bInfo)
+		self.bInfo.Enable(False)
+		
+		self.bLegend = wx.BitmapButton(self, wx.ID_ANY, self.images.pngLegend, size=BUTTONDIM)
+		self.bLegend.SetToolTip("Display a color legend")
+		self.Bind(wx.EVT_BUTTON, self.onLegend, self.bLegend)
+		self.bLegend.Enable(True)
+		
+		self.bSaveLayers = wx.BitmapButton(self, wx.ID_ANY, self.images.pngSavelayers, size=BUTTONDIM)
+		self.bSaveLayers.SetToolTip("Save specific layers to a file")
+		self.Bind(wx.EVT_BUTTON, self.onSaveLayers, self.bSaveLayers)
+		self.bSaveLayers.Enable(False)
+
+		self.bOpen = wx.BitmapButton(self, wx.ID_ANY, self.images.pngFileopen, size=BUTTONDIM)
+		self.bOpen.SetToolTip("Open a G Code file")
+		self.Bind(wx.EVT_BUTTON, self.onOpen, self.bOpen)
+
+		self.bSave = wx.BitmapButton(self, wx.ID_ANY, self.images.pngFilesave, size=BUTTONDIM)
+		self.bSave.SetToolTip("Save G Code to the current file")
+		self.Bind(wx.EVT_BUTTON, self.onSave, self.bSave)
+		self.bSave.Enable(False)
+		
+		self.bSaveAs = wx.BitmapButton(self, wx.ID_ANY, self.images.pngFilesaveas, size=BUTTONDIM)
+		self.bSaveAs.SetToolTip("Save G Code to a different file")
+		self.Bind(wx.EVT_BUTTON, self.onSaveAs, self.bSaveAs)
+		self.bSaveAs.Enable(False)
+
+		if len(self.settings.printers) > 0:	
+			self.chOctPrint = wx.Choice(self, wx.ID_ANY, choices = self.settings.printers)
+			self.chOctPrint.SetSelection(0)
+				
+			self.bUploadFile = wx.BitmapButton(self, wx.ID_ANY, self.images.pngUpload, size=BUTTONDIM)
+			self.bUploadFile.SetToolTip("Upload file directly to a printer")
+			self.Bind(wx.EVT_BUTTON, self.onUploadFile, self.bUploadFile)
+			self.bUploadFile.Enable(False)
+			
+			self.bDownloadFile = wx.BitmapButton(self, wx.ID_ANY, self.images.pngDownload, size=BUTTONDIM)
+			self.bDownloadFile.SetToolTip("Download file directly from a printer")
+			self.Bind(wx.EVT_BUTTON, self.onDownloadFile, self.bDownloadFile)
+		
+		self.cbShowMoves = wx.CheckBox(self, wx.ID_ANY, "Show Moves")
+		self.cbShowMoves.SetToolTip("Show/Hide non-extrusion moves")
+		self.cbShowMoves.SetValue(self.settings.showmoves)
+		self.Bind(wx.EVT_CHECKBOX, self.onCbShowMoves, self.cbShowMoves)
+
+		self.cbShowPrevious = wx.CheckBox(self, wx.ID_ANY, "Show Previous Layer")
+		self.cbShowPrevious.SetToolTip("Show/Hide the previous layer")
+		self.cbShowPrevious.SetValue(self.settings.showprevious)
+		self.Bind(wx.EVT_CHECKBOX, self.onCbShowPrevious, self.cbShowPrevious)
+
+		self.cbShowRetractions = wx.CheckBox(self, wx.ID_ANY, "Show Retractions")
+		self.cbShowRetractions.SetToolTip("Show/Hide retractions")
+		self.cbShowRetractions.SetValue(self.settings.showretractions)
+		self.Bind(wx.EVT_CHECKBOX, self.onCbShowRetractions, self.cbShowRetractions)
+
+		self.cbShowRevRetractions = wx.CheckBox(self, wx.ID_ANY, "Show Reverse Retractions")
+		self.cbShowRevRetractions.SetToolTip("Show/Hide reverse retractions")
+		self.cbShowRevRetractions.SetValue(self.settings.showrevretractions)
+		self.Bind(wx.EVT_CHECKBOX, self.onCbShowRevRetractions, self.cbShowRevRetractions)
+		
+		self.cmbTool = wx.ComboBox(self, wx.ID_ANY, "None", choices = ["None", "0", "1", "2", "3"],
+			style = wx.CB_DROPDOWN + wx.CB_READONLY)
+		self.cmbTool.SetToolTip("Choose which tool, if any, is highlighted in the display")
+		self.Bind(wx.EVT_COMBOBOX, self.onCmbTool, self.cmbTool)
+
+		self.cbLineNbrs = wx.CheckBox(self, wx.ID_ANY, "Line Numbers")
+		self.cbLineNbrs.SetToolTip("Use G Code line numbers")
+		self.cbLineNbrs.SetValue(self.settings.uselinenbrs)
+		self.Bind(wx.EVT_CHECKBOX, self.onCbLineNbrs, self.cbLineNbrs)
+		
+		self.bBracketStart = wx.BitmapButton(self, wx.ID_ANY, self.images.pngBracketopen, size=BUTTONDIM)
+		self.bBracketStart.SetToolTip("Mark the beginning of a block of G code")
+		self.Bind(wx.EVT_BUTTON, self.onBracketStart, self.bBracketStart)
+		self.bBracketStart.Enable(False)
+		
+		self.bBracketEnd = wx.BitmapButton(self, wx.ID_ANY, self.images.pngBracketclose, size=BUTTONDIM)
+		self.bBracketEnd.SetToolTip("Mark the end of a block of G code")
+		self.Bind(wx.EVT_BUTTON, self.onBracketEnd, self.bBracketEnd)
+		self.bBracketEnd.Enable(False)
+		
+		self.bBracketDel = wx.BitmapButton(self, wx.ID_ANY, self.images.pngBracketdel, size=BUTTONDIM)
+		self.bBracketDel.SetToolTip("Delete the marked block of G code")
+		self.Bind(wx.EVT_BUTTON, self.onBracketDel, self.bBracketDel)
+		self.bBracketDel.Enable(False)
+		
+		btnszr = wx.BoxSizer(wx.HORIZONTAL)
+			
+		opBox = wx.StaticBox(self, wx.ID_ANY, "  Edit Operations  ")
+		opszr = wx.StaticBoxSizer(opBox, wx.HORIZONTAL)
+		opszr.AddSpacer(10)
+		opszr.Add(self.bShift, 0, wx.TOP + wx.BOTTOM, 10)
+		opszr.AddSpacer(10)
+		opszr.Add(self.bModTemp, 0, wx.TOP + wx.BOTTOM, 10)
+		opszr.AddSpacer(10)
+		opszr.Add(self.bModSpeed, 0, wx.TOP + wx.BOTTOM, 10)
+		opszr.AddSpacer(10)
+		opszr.Add(self.bFilChange, 0, wx.TOP + wx.BOTTOM, 10)
+		opszr.AddSpacer(10)
+		opszr.Add(self.bEdit, 0, wx.TOP + wx.BOTTOM, 10)
+		opszr.AddSpacer(10)
+		opszr.Add(self.bSaveLayers, 0, wx.TOP + wx.BOTTOM, 10)
+		opszr.AddSpacer(10)
+		btnszr.Add(opszr, 0, wx.ALIGN_CENTER_HORIZONTAL, 1)
+		
+		infoBox = wx.StaticBox(self, wx.ID_ANY, "  Information  ")
+		infoszr = wx.StaticBoxSizer(infoBox, wx.HORIZONTAL)
+		infoszr.AddSpacer(10)
+		infoszr.Add(self.bInfo, 0, wx.TOP + wx.BOTTOM, 10)
+		infoszr.AddSpacer(10)
+		infoszr.Add(self.bLegend, 0, wx.TOP + wx.BOTTOM, 10)
+		infoszr.AddSpacer(10)
+		btnszr.AddSpacer(20)
+		btnszr.Add(infoszr, 0, wx.ALIGN_CENTER_HORIZONTAL, 1)
+		
+		flBox = wx.StaticBox(self, wx.ID_ANY, "  Local Files  ")
+		flszr = wx.StaticBoxSizer(flBox, wx.HORIZONTAL)
+		flszr.AddSpacer(10)
+		flszr.Add(self.bOpen, 0, wx.TOP + wx.BOTTOM, 10)
+		flszr.AddSpacer(10)
+		flszr.Add(self.bSave, 0, wx.TOP + wx.BOTTOM, 10)
+		flszr.AddSpacer(10)
+		flszr.Add(self.bSaveAs, 0, wx.TOP + wx.BOTTOM, 10)
+		flszr.AddSpacer(10)
+		btnszr.AddSpacer(20)
+		btnszr.Add(flszr, 0, wx.ALIGN_CENTER_HORIZONTAL, 1)
+
+		if len(self.settings.printers) > 0:	
+			octBox = wx.StaticBox(self, wx.ID_ANY, "  OctoPrint  ")
+			bsizer = wx.StaticBoxSizer(octBox, wx.HORIZONTAL)
+	
+			bsizer.AddSpacer(10)
+			bsizer.Add(self.chOctPrint, 1, wx.TOP, 20)
+			bsizer.AddSpacer(20)
+			bsizer.Add(self.bUploadFile, 0, wx.TOP + wx.BOTTOM, 10)
+			bsizer.AddSpacer(10)
+			bsizer.Add(self.bDownloadFile, 0, wx.TOP + wx.BOTTOM, 10)
+			bsizer.AddSpacer(10)
+			btnszr.AddSpacer(20)
+			btnszr.Add(bsizer, 0, wx.ALIGN_CENTER_HORIZONTAL, 1)
+
+		hszr = wx.BoxSizer(wx.HORIZONTAL)
+		hszr.AddSpacer(20)
+		
+		vszr = wx.BoxSizer(wx.VERTICAL)
+		vszr.Add(self.gcFrame)
+		vszr.Add(self.stLayerText, 1, wx.ALIGN_CENTER_HORIZONTAL, 1)
+		vszr.AddSpacer(10)
+
+		opthszr = wx.BoxSizer(wx.HORIZONTAL)
+		optszr = wx.BoxSizer(wx.VERTICAL)
+		optszr.AddSpacer(1)
+		optszr.Add(self.cbShowMoves)
+		optszr.AddSpacer(1)
+		optszr.Add(self.cbShowPrevious)
+		opthszr.Add(optszr)
+		opthszr.AddSpacer(10)
+		optszr = wx.BoxSizer(wx.VERTICAL)
+		optszr.AddSpacer(1)
+		optszr.Add(self.cbShowRetractions)
+		optszr.AddSpacer(1)
+		optszr.Add(self.cbShowRevRetractions)
+		opthszr.Add(optszr)
+		opthszr.AddSpacer(10)
+		optszr = wx.BoxSizer(wx.VERTICAL)
+		optszr.AddSpacer(1)
+		hsz = wx.BoxSizer(wx.HORIZONTAL)
+		hsz.Add(wx.StaticText(self, wx.ID_ANY, "Tool to Hi-light: "), 1, wx.TOP, 5)
+		hsz.AddSpacer(5)
+		hsz.Add(self.cmbTool)
+		optszr.Add(hsz)
+		opthszr.Add(optszr)
+		vszr.Add(opthszr)
+		hszr.Add(vszr)
+
+		szNav = wx.BoxSizer(wx.VERTICAL)
+		szNav.Add(self.bUp, 0, wx.LEFT + wx.RIGHT, 15)
+		szNav.AddSpacer(10)
+		szNav.Add(self.slLayers, 1, wx.ALIGN_CENTER_HORIZONTAL, 1)
+		szNav.AddSpacer(10)
+		szNav.Add(self.bDown, 0, wx.LEFT + wx.RIGHT, 15)
+
+		hszr.Add(szNav)
+		hszr.AddSpacer(20)
+		
+		listszr = wx.BoxSizer(wx.VERTICAL)
+		listszr.Add(self.lcGCode)
+		listszr.AddSpacer(10)
+		listszr.Add(self.cbLineNbrs, 1, wx.ALIGN_CENTER_HORIZONTAL, 1)
+		
+		brksz = wx.BoxSizer(wx.HORIZONTAL)
+		brksz.Add(self.bBracketStart)
+		brksz.AddSpacer(20)
+		brksz.Add(self.bBracketDel)
+		brksz.AddSpacer(20)
+		brksz.Add(self.bBracketEnd)
+		listszr.AddSpacer(10)
+		listszr.Add(brksz, 0, wx.ALIGN_CENTER_HORIZONTAL, 1)
+
+
+		
+		hszr.Add(listszr)
+		hszr.AddSpacer(20)
+		
+		vszr = wx.BoxSizer(wx.VERTICAL)
+		vszr.AddSpacer(20)
+		vszr.Add(btnszr, 1, wx.ALIGN_CENTER_HORIZONTAL, 1)
+		vszr.AddSpacer(10)
+		vszr.Add(hszr)
+		vszr.AddSpacer(20)
+		
+		self.SetSizer(vszr)
+		self.Layout()
+		self.Fit()
+		
+		self.slLayers.SetRange(0, lmax)
+		self.slLayers.SetPageSize(int(lmax/10))
+		
+		if self.gObj is not None:
+			self.enableButtons()
+			
+	def onLegend(self, evt):
+		if self.legend is None:
+			self.legend = LegendDlg(self)
+			self.legend.Show()
+		else:
+			self.legend.Show()
+			self.legend.Raise()
+			
+	def legendClosed(self):
+		self.legend = None
+			
+	def onBracketStart(self, evt):
+		b = self.lcGCode.setBracketStart()
+		self.gcFrame.setBracket(b)
+		self.enableBracketDel(b)
+
+	def onBracketEnd(self, evt):
+		b = self.lcGCode.setBracketEnd()
+		self.gcFrame.setBracket(b)
+		self.enableBracketDel(b)
+
+	def enableBracketDel(self, b=None):
+		if b is None:
+			b = self.lcGCode.getBracket()
+			
+		if b[0] is None or b[1] is None:
+			self.bBracketDel.Enable(False)
+		else:
+			self.bBracketDel.Enable(True)
+		
+	def onBracketDel(self, evt):
+		b = self.lcGCode.getBracket()
+		if b[0] is None or b[1] is None:
+			return
+		
+		self.gcode = self.gcode[:b[0]] + self.gcode[b[1]+1:]
+		self.setModified(True)
+		self.gObj = self.buildModel()
+		l = self.gcFrame.getCurrentLayer()
+		self.gcFrame.loadModel(self.gObj, l, self.gcFrame.getZoom())
+		lmax = self.gObj.layerCount()-1
+		self.slLayers.SetRange(0, lmax)
+		self.slLayers.SetPageSize(int(lmax/10))
+		self.lcGCode.setGCode(self.gcode)
+		self.lcGCode.setLayerBounds(self.gObj.getGCodeLines(l))
+		self.bBracketDel.Enable(False)
+		self.updateInfoDlg(self.currentLayer)
+	
+	def updateTitle(self):
+		if self.filename is None:
+			self.SetTitle("%s" % TITLE_PREFIX)
+		else:
+			txt = TITLE_PREFIX + " - "
+			if self.modified:
+				txt += "* "
+			txt += self.filename
+			if self.downloadSource is not None:
+				txt += " (%s)" % self.downloadSource
+			self.SetTitle(txt)
+			
+	def setModified(self, flag=True):
+		self.modified = flag
+		self.updateTitle()
+		
+	def onExport(self, evt):
+		pass
+		
+	def onOpen(self, evt):
+		if self.modified:
+			dlg = wx.MessageDialog(self,
+				"You have unsaved changes.\nAre you sure you want to open a different file?",
+				"Confirm Open With Pending Changes",
+				wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION)
+			rc = dlg.ShowModal()
+			dlg.Destroy()
+			if rc != wx.ID_YES:
+				return
+
+		self.gcodeFileDialog()
+		
+	def onInfo(self, evt):
+		if self.propDlg is not None:
+			return
+		
+		self.propDlg = PropertiesDlg(self, self, cb=self.onInfoClose)
+		
+		self.showFileProperties()
+		self.showLayerProperties(self.currentLayer)
+		self.propDlg.Show()
+		
+	def onInfoClose(self):
+		self.propDlg = None
+		
+	def updateInfoDlg(self, lx):
+		if self.propDlg is None:
+			return
+		
+		self.showFileProperties()
+		self.showLayerProperties(lx)
+		
+	def showFileProperties(self):
+		if self.downloadSource is not None:
+			self.propDlg.setProperty(PropertyEnum.fileName, "%s (%s)" % (self.filename, self.downloadSource))
+			self.propDlg.setProperty(PropertyEnum.sliceTime, "?")
+			self.propDlg.setProperty(PropertyEnum.printEstimate, self.totalTimeStr)
+		else:
+			ftime = time.strftime('%y/%m/%d-%H:%M:%S', time.localtime(os.path.getmtime(self.filename)))
+			if len(self.filename) > 50:
+				self.propDlg.setProperty(PropertyEnum.fileName, os.path.basename(self.filename))
+			else:
+				self.propDlg.setProperty(PropertyEnum.fileName, self.filename)
+			self.propDlg.setProperty(PropertyEnum.sliceTime, ftime)
+			self.propDlg.setProperty(PropertyEnum.printEstimate, self.totalTimeStr)
+		
+	def showLayerProperties(self, lx):
+		if self.propDlg is None:
+			return
+		
+		self.propDlg.setProperty(PropertyEnum.layerNum, "%d" % lx)
+		x0, y0, xn, yn = self.gObj.getLayerMinMaxXY(lx)
+		if x0 is None:
+			self.propDlg.setProperty(PropertyEnum.minMaxXY, "")
+		elif x0 > xn or y0 > yn:
+			self.propDlg.setProperty(PropertyEnum.minMaxXY, "")
+		else:
+			self.propDlg.setProperty(PropertyEnum.minMaxXY, "(%.2f, %.2f) - (%.2f, %.2f)" % (x0, y0, xn, yn))
+		
+		le, prior, after = self.gObj.getLayerFilament(lx)
+		eUsed = self.gObj.getFilament()
+		s = []
+		for i in range(self.settings.nextruders):
+			s.append("%.2f/%.2f    <: %.2f    >: %.2f" % (le[i], eUsed[i], prior[i], after[i]))
+		self.propDlg.setProperty(PropertyEnum.filamentUsed, s)
+		
+		hts = "%.2f mm" % self.gObj[self.currentLayer].printHeight()
+		self.propDlg.setProperty(PropertyEnum.layerHeight, hts)
+
+		f, l = self.gObj.getGCodeLines(lx)
+		if f is None:
+			self.propDlg.setProperty(PropertyEnum.gCodeRange, "")
+		else:
+			self.propDlg.setProperty(PropertyEnum.gCodeRange, "%d - %d" % (f, l))
+		
+		self.propDlg.setProperty(PropertyEnum.layerPrintTime, self.layerTimeStr[lx])
+		if lx == 0:
+			self.propDlg.setProperty(PropertyEnum.timeUntil, "")
+		else:
+			t = sum(self.layerTimes[:lx])
+			self.propDlg.setProperty(PropertyEnum.timeUntil, formatElapsed(t))
+		
+	def gcodeFileDialog(self):
+		wildcard = "GCode (*.gcode)|*.gcode;*.GCODE|"	 \
+			"All files (*.*)|*.*"
+			
+		dlg = wx.FileDialog(
+			self, message="Choose a GCode file",
+			defaultDir=self.settings.lastdirectory, 
+			defaultFile="",
+			wildcard=wildcard,
+			style=wx.FD_OPEN)
+
+		rc = dlg.ShowModal()
+		if rc == wx.ID_OK:
+			path = dlg.GetPath().encode('ascii','ignore')
+		dlg.Destroy()
+		if rc != wx.ID_OK:
+			return
+		
+		self.loadGFile(path)
+		
+	def loadGFile(self, path):
+		self.settings.lastdirectory = os.path.dirname(path)
+		
+		self.gObj = self.loadGCode(path)
+		self.downloadSource = None
+		self.setScreen(path)
+		
+	def setScreen(self, path):
+		if self.gObj is None:
+			lmax = 1
+			self.slLayers.Enable(False)
+			self.bUp.Enable(False)
+			self.bDown.Enable(False)
+			self.filename = None
+		else:
+			lmax = self.gObj.layerCount()-1
+			self.slLayers.Enable(True)
+			self.bUp.Enable(True)
+			self.bDown.Enable(True)
+			self.filename = path
+			
+		self.updateTitle()
+			
+		self.slLayers.SetRange(0, lmax)
+		self.slLayers.SetPageSize(int(lmax/10))
+		
+		self.gcFrame.loadModel(self.gObj)
+		self.lcGCode.setGCode(self.gcode)
+		self.currentLayer = 0
+		self.setLayerText()
+		self.slLayers.SetValue(0)
+		self.updateInfoDlg(0)
+
+		self.setModified(False)
+		if self.gObj is not None:
+			self.lcGCode.setLayerBounds(self.gObj.getGCodeLines(0))
+			self.enableButtons()
+		else:
+			self.enableButtons(False)
+			
+	def enableButtons(self, flag=True, openButtons=False):
+		self.bShift.Enable(flag)
+		self.bModTemp.Enable(flag)
+		self.bModSpeed.Enable(flag)
+		self.bEdit.Enable(flag)
+		self.bInfo.Enable(flag)
+		self.bUp.Enable(flag)
+		self.bDown.Enable(flag)
+		self.bSaveLayers.Enable(flag)
+		self.bSave.Enable(flag and self.downloadSource is None)
+		self.bSaveAs.Enable(flag)
+		self.bFilChange.Enable(flag)
+		self.bBracketStart.Enable(flag)
+		self.bBracketEnd.Enable(flag)
+		self.enableBracketDel()
+		self.bUploadFile.Enable(flag)
+		self.bDownloadFile.Enable(flag)
+		if openButtons:
+			self.bOpen.Enable(flag)
+			self.bDownloadFile.Enable(flag)
+			
+	def doShiftModel(self, evt):
+		dlg = ShiftModelDlg(self, self.gObj, self.settings.buildarea)
+		dlg.CenterOnScreen()
+		rc = dlg.ShowModal()
+		dlg.Destroy()
+		if rc == wx.ID_OK:
+			self.applyShift()
+			self.setModified()
+		else:
+			self.setShift(0, 0)
+		
+	def setShift(self, sx, sy):
+		self.shiftX = sx
+		self.shiftY = sy
+		self.gcFrame.setShift(sx, sy)
+
+	def applyShift(self):
+		self.gcode = [self.applyAxisShift(self.applyAxisShift(l, 'y', self.shiftY), 'x', self.shiftX) for l in self.gcode]
+		self.shiftX = 0
+		self.shiftY = 0
+		self.gObj = self.buildModel()
+		self.gcFrame.loadModel(self.gObj, self.gcFrame.getCurrentLayer(), self.gcFrame.getZoom())
+		self.lcGCode.setGCode(self.gcode)
+		self.lcGCode.refreshList()
+		self.updateInfoDlg(self.currentLayer)
+
+	def applyAxisShift(self, s, axis, shift):
+		if "m117" in s or "M117" in s:
+			return s
+
+		if axis == 'x':
+			m = reX.match(s)
+			maxv = self.settings.buildarea[0]
+		elif axis == 'y':
+			m = reY.match(s)
+			maxv = self.settings.buildarea[1]
+		elif axis == 'z':
+			m = reZ.match(s)
+			maxv = self.settings.buildarea[1]
+		else:
+			return s
+		
+		if m is None or m.lastindex != 3:
+			return s
+		
+		value = float(m.group(2)) + float(shift)
+		if value < 0:
+			value = 0.0
+		elif value > maxv:
+			value = float(maxv)
+			
+		return "%s%s%s" % (m.group(1), str(value), m.group(3))
+	
+	def onModTemps(self, evt):
+		dlg = ModifyTempsDlg(self, self.gObj, self.settings.platemps, self.settings.abstemps)
+		dlg.CenterOnScreen()
+		rc = dlg.ShowModal()
+		if rc == wx.ID_OK:
+			bed, hes = dlg.getResult()
+			
+		dlg.Destroy()
+		if rc != wx.ID_OK:
+			return
+		
+		self.applyTempChange(bed, hes)
+
+	def applyTempChange(self, bed, hes):
+		self.currentTool = 0
+		self.gcode = [self.applySingleTempChange(l, bed, hes) for l in self.gcode]
+		self.setModified(True)
+		self.gObj = self.buildModel()
+		self.gcFrame.loadModel(self.gObj, self.gcFrame.getCurrentLayer(), self.gcFrame.getZoom())
+		self.lcGCode.setGCode(self.gcode)
+		self.lcGCode.refreshList()
+		self.updateInfoDlg(self.currentLayer)
+		
+	def applySingleTempChange(self, s, bed, hes):
+		if "m104" in s.lower() or "m109" in s.lower():
+			m = reS.match(s)
+			difference = hes[self.currentTool]
+		elif "m140" in s.lower() or "m190" in s.lower():
+			m = reS.match(s)
+			difference = bed
+		elif s.startswith("T"):
+			try:
+				t = int(s[1:])
+			except:
+				t = None
+
+			if t is not None:
+				self.currentTool = t
+			return s
+		else:
+			return s
+
+		if m is None or m.lastindex != 3:
+			return s
+
+		value = float(m.group(2))
+		if value == 0.0:
+			return s
+
+		value += float(difference)
+		return "%s%s%s" % (m.group(1), str(value), m.group(3))
+	
+	def onModSpeed(self, evt):
+		dlg = ModifySpeedDlg(self)
+		dlg.CenterOnScreen()
+		val = dlg.ShowModal()
+
+		if val == wx.ID_OK:
+			modSpeeds = dlg.getResult()
+			
+		dlg.Destroy()
+		if val != wx.ID_OK:
+			return
+		
+		self.applySpeedChange([float(x)/100.0 for x in modSpeeds])
+
+	def applySpeedChange(self, speeds):
+		self.gcode = [self.applySingleSpeedChange(l, speeds) for l in self.gcode]
+		self.setModified(True)
+		self.gObj = self.buildModel()
+		self.gcFrame.loadModel(self.gObj, self.gcFrame.getCurrentLayer(), self.gcFrame.getZoom())
+		self.lcGCode.setGCode(self.gcode)
+		self.lcGCode.refreshList()
+		self.updateInfoDlg(self.currentLayer)
+
+	def applySingleSpeedChange(self, s, speeds):
+		if "m117" in s or "M117" in s:
+			return s
+
+		m = reF.match(s)
+		if m is None or m.lastindex != 3:
+			return s
+
+		e = reE.match(s)
+		if e is None: #no extrusion - must  be a move
+			factor = speeds[1]
+		else:
+			factor = speeds[0]
+
+		value = float(m.group(2)) * float(factor)
+		return "%s%s%s" % (m.group(1), str(value), m.group(3))
+	
+	def onFilChange(self, evt):
+		insertPoint = self.lcGCode.getSelectedLine()
+		dlg = FilamentChangeDlg(self, self.gcode, self.gObj,
+				insertPoint,
+				self.gObj[self.currentLayer].printHeight())
+		rc = dlg.ShowModal()
+		if rc == wx.ID_OK:
+			ngc = dlg.getValues()
+			
+		dlg.Destroy()
+		if rc != wx.ID_OK:
+			return
+			
+		if insertPoint == 0:
+			self.gcode = ngc + self.gcode
+		else:
+			self.gcode = self.gcode[:insertPoint] + ngc + self.gcode[insertPoint:]
+		
+		self.setModified(True)
+		self.enableButtons()
+		self.gObj = self.buildModel()
+				
+		lmax = self.gObj.layerCount()-1
+		self.slLayers.SetRange(0, lmax)
+		self.slLayers.SetPageSize(int(lmax/10))
+
+		self.gcFrame.loadModel(self.gObj, self.currentLayer, None)
+		self.lcGCode.setGCode(self.gcode)
+		self.lcGCode.setLayerBounds(self.gObj.getGCodeLines(self.currentLayer))
+		self.updateInfoDlg(self.currentLayer)
+	
+	def onEditGCode(self, evt):
+		self.editDlg = EditGCodeDlg(self, self.gcode, "<live buffer>", self.editClosed)
+		self.editDlg.CenterOnScreen()
+		self.editDlg.Show()
+		self.enableButtons(flag=False, openButtons=True)
+		
+	def editClosed(self, rc):
+		self.enableButtons(flag=True, openButtons=True)
+		if rc == wx.ID_OK:
+			data = self.editDlg.getData()
+			
+		self.editDlg.Destroy()
+		if rc != wx.ID_OK:
+			return
+
+		self.gcode = data[:]
+		self.setModified(True)
+		self.gObj = self.buildModel()
+		self.gcFrame.loadModel(self.gObj, 0, 1)
+		self.currentLayer = 0
+		self.setLayerText()
+		self.slLayers.SetValue(0)
+		
+		lmax = self.gObj.layerCount()-1
+		self.slLayers.SetRange(0, lmax)
+		self.slLayers.SetPageSize(int(lmax/10))
+
+		self.lcGCode.setGCode(self.gcode)
+		self.lcGCode.setLayerBounds(self.gObj.getGCodeLines(0))
+		self.lcGCode.refreshList()
+		self.updateInfoDlg(0)
+			
+	def onCbShowMoves(self, evt):
+		self.settings.showmoves = self.cbShowMoves.GetValue()
+		self.gcFrame.setShowMoves(self.settings.showmoves)
+	
+	def onCbShowPrevious(self, evt):
+		self.settings.showprevious = self.cbShowPrevious.GetValue()
+		self.gcFrame.setShowPrevious(self.settings.showprevious)
+	
+	def onCbShowRetractions(self, evt):
+		self.settings.showretractions = self.cbShowRetractions.GetValue()
+		self.gcFrame.setShowRetractions(self.settings.showretractions)
+	
+	def onCbShowRevRetractions(self, evt):
+		self.settings.showrevretractions = self.cbShowRevRetractions.GetValue()
+		self.gcFrame.setShowRevRetractions(self.settings.showrevretractions)
+		
+	def onCmbTool(self, evt):
+		sel = self.cmbTool.GetStringSelection()
+		if sel == "" or sel == "None":
+			sel = None
+		else:
+			try:
+				sel = int(sel)
+			except:
+				sel = None
+				
+		self.gcFrame.setHilightTool(sel)
+		
+	def onCbLineNbrs(self, evt):
+		self.settings.uselinenbrs = self.cbLineNbrs.GetValue()
+		self.lcGCode.setLineNumbers(self.settings.uselinenbrs)
+		
+	def onLayerScroll(self, evt):
+		v = self.slLayers.GetValue()
+		if v == self.currentLayer:
+			return
+		
+		self.changeLayer(v)
+		
+	def onUp(self, evt):
+		lmax = self.slLayers.GetRange()[1]
+		if self.currentLayer >= lmax:
+			return
+		
+		v = self.currentLayer + 1
+		self.changeLayer(v)
+	
+	def onDown(self, evt):
+		if self.currentLayer <= 0:
+			return
+		
+		v = self.currentLayer - 1
+		self.changeLayer(v)
+		
+	def onUploadFile(self, evt):
+		pname = self.chOctPrint.GetString(self.chOctPrint.GetSelection())
+		bn = os.path.basename(self.filename)
+		ps = PrinterServer(self.settings.apikey[pname], self.settings.ipaddr[pname])
+		dlg = UploadDestinationDlg(self, pname, ps, bn)
+		rc = dlg.ShowModal()
+		if rc == wx.ID_OK:
+			fn = dlg.getFn()
+		
+		dlg.Destroy()
+		if rc == wx.ID_OK:
+			ps.gfile.uploadString("".join(self.gcode), fn)
+
+	def onDownloadFile(self, evt):
+		if self.modified:
+			dlg = wx.MessageDialog(self,
+				"You have unsaved changes.\nAre you sure you want to download a file?",
+				"Confirm Download With Pending Changes",
+				wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION)
+			rc = dlg.ShowModal()
+			dlg.Destroy()
+			if rc != wx.ID_YES:
+				return
+
+		pname = self.chOctPrint.GetString(self.chOctPrint.GetSelection())
+		ps = PrinterServer(self.settings.apikey[pname], self.settings.ipaddr[pname])
+		dlg = DownloadSourceDlg(self, pname, ps)
+		rc = dlg.ShowModal()
+		if rc == wx.ID_OK:
+			fn = dlg.getFn()
+			url = dlg.getUrl()
+		
+		dlg.Destroy()
+		if rc != wx.ID_OK:
+			return
+		
+		if url is None:
+			return 
+		
+		rc, gc = ps.gfile.downloadFile(url)
+		if rc >= 400:
+			dlg = wx.MessageDialog(self, "Error code from file download: %d" % rc,
+					"Download Error", wx.OK | wx.ICON_ERROR)
+			dlg.ShowModal()
+			dlg.Destroy()
+
+		else:
+			self.gcode = gc.split("\n")
+			self.gObj = self.buildModel()
+			self.downloadSource = pname
+			self.setScreen(fn)
+		
+	def changeLayer(self, v):
+		self.currentLayer = v
+		self.gcFrame.setLayer(v)
+		self.slLayers.SetValue(v)
+		self.setLayerText()
+		self.lcGCode.setLayerBounds(self.gObj.getGCodeLines(v))
+		self.showLayerProperties(v)
+		
+	def setLayerText(self):
+		if self.gObj is None:
+			ht = 0.0
+		else:
+			ht = self.gObj[self.currentLayer].printHeight()
+		self.stLayerText.SetLabel("Layer Height: %0.3f" % ht)
+		
+	def reportSelectedLine(self, ln):
+		self.gcFrame.reportSelectedLine(ln)
+					
+	def onClose(self, evt):
+		self.settings.save()
+		if self.modified:
+			dlg = wx.MessageDialog(self,
+				"You have unsaved changes.\nAre you sure you want to exit?",
+				"Confirm Exit With Pending Changes",
+				wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION)
+			rc = dlg.ShowModal()
+			dlg.Destroy()
+			if rc == wx.ID_YES:
+				self.Destroy()
+		else:
+			self.Destroy()
+		
+	def loadGCode(self, fn):
+		if fn is None:
+			self.gcode = []
+			return None
+		
+		try:
+			self.gcode = list(open(fn))
+		except:
+			dlg = wx.MessageDialog(self, "Error Opening file %s" % fn,
+						"Open Error", wx.OK | wx.ICON_ERROR)
+			dlg.ShowModal()
+			dlg.Destroy()
+			return None
+		
+		return self.buildModel()
+		
+	def buildModel(self):
+		rgcode = [s.rstrip() for s in self.gcode]
+		
+		cnc = CNC(self.settings.acceleration, self.settings.layerheight)
+		
+		ln = -1
+		for gl in rgcode:
+			ln += 1
+			if ";" in gl:
+				gl = gl.split(";")[0]
+			if gl.strip() == "":
+				continue
+			
+			p = re.split("\\s+", gl, 1)
+			
+			params = {}
+			if not (p[0].strip() in ["M117", "m117"]):
+				if len(p) >= 2:
+					self.paramStr = p[1]
+					
+					if "X" in self.paramStr:
+						params["X"] = self._get_float("X")
+						
+					if "Y" in self.paramStr:
+						params["Y"] = self._get_float("Y")
+			
+					if "Z" in self.paramStr:
+						params["Z"] = self._get_float("Z")
+			
+					if "E" in self.paramStr:
+						params["E"] = self._get_float("E")
+			
+					if "F" in self.paramStr:
+						params["F"] = self._get_float("F")
+			
+					if "S" in self.paramStr:
+						params["S"] = self._get_float("S")
+			
+			cnc.execute(p[0], params, ln)
+			
+		gobj = cnc.getGObject()
+		gobj.setMaxLine(ln)
+		self.totalTime, self.layerTimes = cnc.getTimes()
+
+		self.totalTimeStr = formatElapsed(self.totalTime)
+		self.layerTimeStr = [formatElapsed(s) for s in self.layerTimes]
+
+		return gobj
+				
+	def _get_float(self,which):
+		try:
+			return float(gcRegex.findall(self.paramStr.split(which)[1])[0])
+		except:
+			print "exception: ", self.paramStr
+	
+	def onSaveAs(self, evt):
+		wildcard = "GCode (*.gcode)|*.gcode;*.GCODE"
+
+		dlg = wx.FileDialog(
+			self, message="Save as ...", defaultDir=self.settings.lastdirectory, 
+			defaultFile="", wildcard=wildcard, style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT)
+		
+		val = dlg.ShowModal()
+
+		if val != wx.ID_OK:
+			dlg.Destroy()
+			return
+		
+		path = dlg.GetPath()
+		dlg.Destroy()
+
+		ext = os.path.splitext(os.path.basename(path))[1]
+		if ext == "":
+			path += ".gcode"
+			
+		self.saveFile(path)
+		
+	def onSave(self, evt):
+		if self.filename is None:
+			self.onSaveAs(evt)
+		else:
+			self.saveFile(self.filename)
+		
+	def saveFile(self, path):			
+		fp = file(path, 'w')
+		
+		for ln in self.gcode:
+			fp.write("%s\n" % ln.rstrip())
+			
+		self.setModified(False)
+			
+		fp.close()
+		
+		self.filename = path
+		self.updateTitle()
+		
+		dlg = wx.MessageDialog(self, "G Code file\n" + path + "\nwritten.",
+			'Save Successful', wx.OK | wx.ICON_INFORMATION)
+		dlg.ShowModal()
+		dlg.Destroy()
+		
+	def onSaveLayers(self, evt):
+		dlg = SaveLayerDlg(self, self.gObj)
+		rc = dlg.ShowModal()
+		if rc == wx.ID_OK:
+			sx, ex, ereset, zmodify, zdelta = dlg.getValues()
+			
+		dlg.Destroy()
+		if rc != wx.ID_OK:
+			return
+		
+		startLine = self.gObj.getGCodeLines(sx)[0]
+		endLine = self.gObj.getGCodeLines(ex)[1]
+		
+		wildcard = "GCode (*.gcode)|*.gcode;*.GCODE"
+
+		dlg = wx.FileDialog(
+			self, message="Save as ...", defaultDir=self.settings.lastdirectory, 
+			defaultFile="", wildcard=wildcard, style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT)
+		
+		val = dlg.ShowModal()
+
+		if val != wx.ID_OK:
+			dlg.Destroy()
+			return
+		
+		path = dlg.GetPath()
+		dlg.Destroy()
+
+		ext = os.path.splitext(os.path.basename(path))[1]
+		if ext == "":
+			path += ".gcode"
+			
+		fp = file(path, 'w')
+		
+		if ereset:
+			fp.write("G92 E%0.5f\n" % self.gObj[sx].startingE())
+			
+		if zmodify:
+			fp.write("\n".join([self.applyAxisShift(ln, 'z', zdelta).rstrip() for ln in self.gcode[startLine:endLine+1]]))
+		else:
+			fp.write("\n".join([ln.rstrip() for ln in self.gcode[startLine:endLine+1]]))
+			
+		fp.close()
+		
+		dlg = wx.MessageDialog(self, "G Code file\n" + path + "\nwritten.",
+			'Save Layers Successful', wx.OK | wx.ICON_INFORMATION)
+		dlg.ShowModal()
+		dlg.Destroy()
+		
+	def applyZMod(self, ln, modflag):
+		if not modflag:
+			return ln
+		
+		return ln
+			
+class App(wx.App):
+	def OnInit(self):
+		self.frame = GEditDlg()
+		#self.frame.Show()
+		self.SetTopWindow(self.frame)
+		return True
+
+app = App(False)
+app.MainLoop()
