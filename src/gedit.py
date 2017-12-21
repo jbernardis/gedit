@@ -908,7 +908,7 @@ class GEditDlg(wx.Frame):
 		
 		dlg.Destroy()
 		if rc == wx.ID_OK:
-			ps.gfile.uploadString("".join(self.gcode), fn)
+			ps.gfile.uploadString("\n".join(self.gcode), fn)
 
 	def onDownloadFile(self, evt):
 		if self.modified:
