@@ -11,7 +11,7 @@ class ModifyTempsDlg(wx.Dialog):
 	def __init__(self, parent, model, platemp, abstemp):
 		wx.Dialog.__init__(self, parent, wx.ID_ANY, "Modify Temperatures")
 		
-		ipfont = wx.Font(16,  wx.FONTFAMILY_SWISS, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
+		ipfont = wx.Font(12,  wx.FONTFAMILY_SWISS, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
 
 		self.app = parent
 		self.model = model
@@ -70,25 +70,30 @@ class ModifyTempsDlg(wx.Dialog):
 			self.heTemp[he].SetFont(ipfont)
 			slidesizer.Add(self.heTemp[he], 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 40)
 
-		btn = wx.Button(self, wx.ID_ANY, "PLA->ABS")
+		btn = wx.Button(self, wx.ID_ANY, "PLA->ABS", size=(85, 50))
 		btn.SetHelpText("Change from PLA profile to ABS")
 		self.Bind(wx.EVT_BUTTON, self.profilePLA2ABS, btn)
 		btnsizer.Add(btn);
+		
+		btnsizer.AddSpacer(10)
 
-		btn = wx.Button(self, wx.ID_ANY, "ABS->PLA")
+		btn = wx.Button(self, wx.ID_ANY, "ABS->PLA", size=(85, 50))
 		btn.SetHelpText("Change from ABS profile to PLA")
 		self.Bind(wx.EVT_BUTTON, self.profileABS2PLA, btn)
 		btnsizer.Add(btn);
 		
-		self.btnOK = wx.Button(self, wx.ID_OK)
+		btnsizer.AddSpacer(30)
+		
+		self.btnOK = wx.Button(self, wx.ID_OK, "OK", size=(85, 50))
 		self.btnOK.SetHelpText("Save the changes")
 		self.btnOK.SetDefault()
 		btnsizer.Add(self.btnOK)
 		self.btnOK.Enable(False)
+		
+		btnsizer.AddSpacer(10)
 
-		self.btnCancel = wx.Button(self, wx.ID_CANCEL)
+		self.btnCancel = wx.Button(self, wx.ID_CANCEL, "Close", size=(85, 50))
 		self.btnCancel.SetHelpText("Exit without saving")
-		self.btnCancel.SetLabel("Close")
 		btnsizer.Add(self.btnCancel)
 
 		self.showTemps()
