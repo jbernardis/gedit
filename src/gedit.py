@@ -102,6 +102,7 @@ class GEditDlg(wx.Frame):
 	def __init__(self):
 		wx.Frame.__init__(self, None, wx.ID_ANY, TITLE_PREFIX, size=(600, 600))
 		self.SetBackgroundColour(wx.Colour(40, 100, 160))
+		self.SetForegroundColour(wx.Colour(255, 255, 255))
 		self.Show()
 		ico = wx.Icon(os.path.join(cmdFolder, "images", "geditico.png"), wx.BITMAP_TYPE_PNG)
 		self.SetIcon(ico)
