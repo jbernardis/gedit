@@ -246,7 +246,7 @@ class GEditDlg(wx.Frame):
 		self.Bind(wx.EVT_CHECKBOX, self.onCbShowRevRetractions, self.cbShowRevRetractions)
 		
 		self.cmbTool = wx.ComboBox(self, wx.ID_ANY, "None", choices = ["None", "0", "1", "2", "3"],
-			style = wx.CB_DROPDOWN + wx.CB_READONLY)
+			size=(88, -1), style = wx.CB_DROPDOWN + wx.CB_READONLY)
 		self.cmbTool.SetToolTip("Choose which tool, if any, is highlighted in the display")
 		self.Bind(wx.EVT_COMBOBOX, self.onCmbTool, self.cmbTool)
 
@@ -357,6 +357,7 @@ class GEditDlg(wx.Frame):
 		optszr.Add(hsz)
 		opthszr.Add(optszr)
 		vszr.Add(opthszr)
+		vszr.AddSpacer(20)
 		hszr.Add(vszr)
 
 		szNav = wx.BoxSizer(wx.VERTICAL)
@@ -366,6 +367,7 @@ class GEditDlg(wx.Frame):
 		szNav.AddSpacer(10)
 		szNav.Add(self.bDown, 0, wx.LEFT + wx.RIGHT, 15)
 
+		hszr.AddSpacer(20)
 		hszr.Add(szNav)
 		hszr.AddSpacer(20)
 		
@@ -390,10 +392,10 @@ class GEditDlg(wx.Frame):
 		
 		vszr = wx.BoxSizer(wx.VERTICAL)
 		vszr.AddSpacer(20)
-		vszr.Add(btnszr, 1, wx.ALIGN_CENTER_HORIZONTAL, 1)
+		vszr.Add(btnszr, 0, wx.ALIGN_CENTER_HORIZONTAL, 1)
 		vszr.AddSpacer(10)
 		vszr.Add(hszr)
-		vszr.AddSpacer(20)
+		vszr.AddSpacer(30)
 		
 		self.SetSizer(vszr)
 		self.Layout()
