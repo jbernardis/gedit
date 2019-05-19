@@ -1,11 +1,11 @@
-import ConfigParser
+import configparser
 import os
 
 INIFILE = "gedit.ini"
 
 
 def parseBoolean(val, defaultVal):
-	lval = val.lower();
+	lval = val.lower()
 	
 	if lval == 'true' or lval == 't' or lval == 'yes' or lval == 'y':
 		return True
@@ -34,12 +34,13 @@ class Settings:
 		self.abstemps = [110, 225]
 		self.acceleration = 150
 		self.layerheight = 0.2
+		self.stripdownloadM117IND = True
 		
 		self.printers = []
 		self.apikey = {}
 		self.ipaddr = {}
 		
-		self.cfg = ConfigParser.ConfigParser()
+		self.cfg = configparser.ConfigParser()
 		self.cfg.optionxform = str
 		if not self.cfg.read(self.inifile):
 			print("Settings file %s does not exist.  Using default values" % INIFILE)
@@ -53,15 +54,15 @@ class Settings:
 						exec("s=%s" % value)
 						self.buildarea = s
 					except:
-						print "invalid value in ini file for buildarea"
+						print("invalid value in ini file for buildarea")
 						self.buildarea = (200, 200)
 						
 				elif opt == 'printers':
 					try:
-						self.printers = [x.strip() for x in value.split(",")]
+						self.printers = [x.strip() for x in value.split(",") if x.strip() != ""]
 					except:
-						print "invalid value in ini file for printers"
-						self.printers = [""]
+						print("invalid value in ini file for printers")
+						self.printers = []
 						
 				elif opt == 'platemps':
 					try:
@@ -69,7 +70,7 @@ class Settings:
 						exec("s=%s" % value)
 						self.platemps = s
 					except:
-						print "invalid value in ini file for platemps"
+						print("invalid value in ini file for platemps")
 						self.platemps = (60, 185)
 						
 				elif opt == 'abstemps':
@@ -78,7 +79,7 @@ class Settings:
 						exec("s=%s" % value)
 						self.abstemps = s
 					except:
-						print "invalid value in ini file for abstemps"
+						print("invalid value in ini file for abstemps")
 						self.abstemps = (110, 225)
 						
 				elif opt == 'nextruders':
@@ -123,27 +124,30 @@ class Settings:
 						
 				elif opt == 'showretractions':
 					self.showretractions = parseBoolean(value, True)
-						
+
+				elif opt == 'stripdownloadM117IND':
+					self.stripdownloadM117IND = parseBoolean(value, True)
+
 				elif opt == 'showrevretractions':
 					self.showrevretractions = parseBoolean(value, True)
-			
+
 			for p in self.printers:
 				if self.cfg.has_option(self.section, "%s.apikey" % p):
 					self.apikey[p] = self.cfg.get(self.section, "%s.apikey" % p)
 				else:
-					print "missing API Key for printer %s" % p
+					print("missing API Key for printer %s" % p)
 					
 				if self.cfg.has_option(self.section, "%s.ipaddr" % p):
 					self.ipaddr[p] = self.cfg.get(self.section, "%s.ipaddr" % p)
 				else:
-					print "missing IP Address for printer %s" % p
+					print("missing IP Address for printer %s" % p)
 		else:
 			print("Missing %s section - assuming defaults" % self.section)
 	
 	def save(self):
 		try:
 			self.cfg.add_section(self.section)
-		except ConfigParser.DuplicateSectionError:
+		except configparser.DuplicateSectionError:
 			pass
 		
 		self.cfg.set(self.section, "buildarea", str(self.buildarea))
@@ -159,16 +163,17 @@ class Settings:
 		self.cfg.set(self.section, "abstemps", str(self.abstemps))
 		self.cfg.set(self.section, "acceleration", str(self.acceleration))
 		self.cfg.set(self.section, "layerheight", str(self.layerheight))
-		
+		self.cfg.set(self.section, "stripdownloadM117IND", str(self.stripdownloadM117IND))
+
 		self.cfg.set(self.section, "printers", ",".join(self.printers))
 		for p in self.printers:
 			self.cfg.set(self.section, "%s.apikey" % p, str(self.apikey[p]))
 			self.cfg.set(self.section, "%s.ipaddr" % p, str(self.ipaddr[p]))
 
 		try:		
-			cfp = open(self.inifile, 'wb')
+			cfp = open(self.inifile, 'w')
 		except:
-			print "Unable to open settings file %s for writing" % self.inifile
+			print("Unable to open settings file %s for writing" % self.inifile)
 			return
 		self.cfg.write(cfp)
 		cfp.close()

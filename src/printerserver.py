@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-import pprint
-
 import requests
 import os
-import StringIO
+import io
+
+TIMEOUT = 0.3
 
 class PrintHead:
 	def __init__(self, printer):
@@ -11,7 +11,7 @@ class PrintHead:
 		self.url = "http://%s/api/printer/printhead" % self.printer.getIpAddr()
 		self.header = {"X-Api-Key": self.printer.getApiKey()}
 			
-	def jog(self, vector, absolute=False, speed=None):
+	def jog(self, vector, absolute=False, speed=None, to=TIMEOUT):
 		x = 0
 		y = 0
 		z = 0
@@ -28,10 +28,10 @@ class PrintHead:
 		if not speed is None:
 			payload["speed"] = speed
 		
-		r = requests.post(self.url, headers=self.header, json=payload, timeout=0.1)
+		r = requests.post(self.url, headers=self.header, json=payload, timeout=to)
 		return r.status_code
 	
-	def home(self, xyz):
+	def home(self, xyz, to=TIMEOUT):
 		axes = []
 		if xyz[0]:
 			axes.append("x")
@@ -41,12 +41,12 @@ class PrintHead:
 			axes.append("z")
 			
 		payload = { "command": "home", "axes": axes }
-		r = requests.post(self.url, headers=self.header, json=payload, timeout=0.1)
+		r = requests.post(self.url, headers=self.header, json=payload, timeout=to)
 		return r.status_code
 	
-	def feedrate(self, factor):
+	def feedrate(self, factor, to=TIMEOUT):
 		payload = { "command": "feedrate", "factor": factor }
-		r = requests.post(self.url, headers=self.header, json=payload, timeout=0.1)
+		r = requests.post(self.url, headers=self.header, json=payload, timeout=to)
 		return r.status_code
 	
 class Tool:
@@ -55,41 +55,41 @@ class Tool:
 		self.url = "http://%s/api/printer/tool" % self.printer.getIpAddr()
 		self.header = {"X-Api-Key": self.printer.getApiKey()}
 	
-	def state(self):
-		r = requests.get(self.url, data={}, headers=self.header, timeout=0.1)
+	def state(self, to=TIMEOUT):
+		r = requests.get(self.url, data={}, headers=self.header, timeout=to)
 		return r.status_code, r.json()
 	
-	def target(self, targetVals):
+	def target(self, targetVals, to=TIMEOUT):
 		targets = {}
 		for t in targetVals.keys():
 			targets["tool%s" % t] = targetVals[t]
 			
 		payload = { "command": "target", "targets": targets }
-		r = requests.post(self.url, headers=self.header, json=payload, timeout=0.1)
+		r = requests.post(self.url, headers=self.header, json=payload, timeout=to)
 		return r.status_code
 	
-	def offset(self, offsetVals):
+	def offset(self, offsetVals, to=TIMEOUT):
 		offsets = {}
 		for i in range(len(offsetVals)):
 			offsets["tool%d" % i] = offsetVals[i]
 			
 		payload = { "command": "offset", "offsets": offsets }
-		r = requests.post(self.url, headers=self.header, json=payload, timeout=0.1)
+		r = requests.post(self.url, headers=self.header, json=payload, timeout=to)
 		return r.status_code
 	
-	def select(self, toolx):
+	def select(self, toolx, to=TIMEOUT):
 		payload = { "command": "select", "tool": "tool%d" % toolx }
-		r = requests.post(self.url, headers=self.header, json=payload, timeout=0.1)
+		r = requests.post(self.url, headers=self.header, json=payload, timeout=to)
 		return r.status_code
 	
-	def extrude(self, length):
+	def extrude(self, length, to=TIMEOUT):
 		payload = { "command": "extrude", "amount": length }
-		r = requests.post(self.url, headers=self.header, json=payload, timeout=0.1)
+		r = requests.post(self.url, headers=self.header, json=payload, timeout=to)
 		return r.status_code
 	
-	def retract(self, length):
+	def retract(self, length, to=TIMEOUT):
 		payload = { "command": "extrude", "amount": -length }
-		r = requests.post(self.url, headers=self.header, json=payload, timeout=0.1)
+		r = requests.post(self.url, headers=self.header, json=payload, timeout=to)
 		return r.status_code
 
 class Bed:
@@ -98,22 +98,22 @@ class Bed:
 		self.url = "http://%s/api/printer/bed" % self.printer.getIpAddr()
 		self.header = {"X-Api-Key": self.printer.getApiKey()}
 	
-	def state(self):
-		r = requests.get(self.url, data={}, headers=self.header, timeout=0.1)
+	def state(self, to=TIMEOUT):
+		r = requests.get(self.url, data={}, headers=self.header, timeout=to)
 		try:
 			rv = r.json()
 		except:
 			rv = None
 		return r.status_code, rv
 	
-	def target(self, targetVal):
+	def target(self, targetVal, to=TIMEOUT):
 		payload = { "command": "target", "target": targetVal }
-		r = requests.post(self.url, headers=self.header, json=payload, timeout=0.1)
+		r = requests.post(self.url, headers=self.header, json=payload, timeout=to)
 		return r.status_code
 	
-	def offset(self, offsetVal):
+	def offset(self, offsetVal, to=TIMEOUT):
 		payload = { "command": "offset", "offset": offsetVal }
-		r = requests.post(self.url, headers=self.header, json=payload, timeout=0.1)
+		r = requests.post(self.url, headers=self.header, json=payload, timeout=to)
 		return r.status_code
 
 class Job:
@@ -122,37 +122,37 @@ class Job:
 		self.url = "http://%s/api/job" % self.printer.getIpAddr()
 		self.header = {"X-Api-Key": self.printer.getApiKey()}
 	
-	def state(self):
-		r = requests.get(self.url, data={}, headers=self.header, timeout=0.1)
+	def state(self, to=TIMEOUT):
+		r = requests.get(self.url, data={}, headers=self.header, timeout=to)
 		try:
 			rv = r.json()
 		except:
 			rv = None
 		return r.status_code, rv
 
-	def start(self):
+	def start(self, to=TIMEOUT):
 		payload = { "command": "start" }
-		r = requests.post(self.url, json=payload, headers=self.header, timeout=0.1)
+		r = requests.post(self.url, json=payload, headers=self.header, timeout=to)
 		return r.status_code
 
-	def cancel(self):
+	def cancel(self, to=TIMEOUT):
 		payload = { "command": "cancel" }
-		r = requests.post(self.url, json=payload, headers=self.header, timeout=0.1)
+		r = requests.post(self.url, json=payload, headers=self.header, timeout=to)
 		return r.status_code
 
-	def restart(self):
+	def restart(self, to=TIMEOUT):
 		payload = { "command": "restart" }
-		r = requests.post(self.url, json=payload, headers=self.header, timeout=0.1)
+		r = requests.post(self.url, json=payload, headers=self.header, timeout=to)
 		return r.status_code
 
-	def pause(self):
+	def pause(self, to=TIMEOUT):
 		payload = { "command": "pause", "action": "pause" }
-		r = requests.post(self.url, json=payload, headers=self.header, timeout=0.1)
+		r = requests.post(self.url, json=payload, headers=self.header, timeout=to)
 		return r.status_code
 
-	def resume(self):
+	def resume(self, to=TIMEOUT):
 		payload = { "command": "pause", "action": "resume" }
-		r = requests.post(self.url, json=payload, headers=self.header, timeout=0.1)
+		r = requests.post(self.url, json=payload, headers=self.header, timeout=to)
 		return r.status_code
 	
 class GFile:
@@ -161,7 +161,7 @@ class GFile:
 		self.url = "http://%s/api/files" % self.printer.getIpAddr()
 		self.header = {"X-Api-Key": self.printer.getApiKey()}
 		
-	def uploadFile(self, fn, n=None):
+	def uploadFile(self, fn, n=None, to=TIMEOUT):
 		if n is None:
 			bn = os.path.basename(fn)
 		else:
@@ -170,24 +170,24 @@ class GFile:
 		location = "/local"
 
 		files = {'file': (bn, open(fn, 'rb'), 'application/octet-stream')}
-		r = requests.post(self.url+location, files=files, headers=self.header, timeout=5)
+		r = requests.post(self.url+location, files=files, headers=self.header, timeout=to)
 		try:
 			rv = r.json()
 		except:
 			rv = None
 		return r.status_code, rv
 		
-	def uploadString(self, s, n):
-		files = {'file': (n, StringIO.StringIO(s), 'application/octet-stream')}
+	def uploadString(self, s, n, to=TIMEOUT):
+		files = {'file': (n, io.StringIO(s), 'application/octet-stream')}
 		location = "/local"
-		r = requests.post(self.url+location, files=files, headers=self.header, timeout=5)
+		r = requests.post(self.url+location, files=files, headers=self.header, timeout=to)
 		try:
 			rv = r.json()
 		except:
 			rv = None
 		return r.status_code, rv
 		
-	def listFiles(self, local=True, sd=False, recursive=False):
+	def listFiles(self, local=True, sd=False, recursive=False, to=TIMEOUT):
 		location = ""
 		if local and not sd:
 			location = "/local"
@@ -198,7 +198,7 @@ class GFile:
 			location += "?recursive=true"
 		
 		try:	
-			req = requests.get(self.url+location, headers=self.header, timeout=0.1)
+			req = requests.get(self.url+location, headers=self.header, timeout=to)
 		except:
 			return None
 		
@@ -220,8 +220,8 @@ class GFile:
 			
 		return result
 	
-	def downloadFile(self, url):
-		req = requests.get(url, headers=self.header, timeout=5)
+	def downloadFile(self, url, to=TIMEOUT):
+		req = requests.get(url, headers=self.header, timeout=to)
 		try:
 			rv = req.text
 		except:
@@ -247,60 +247,12 @@ class PrinterServer:
 	def getApiKey(self):
 		return self.apiKey
 	
-	def state(self):
+	def state(self, to=TIMEOUT):
 		url = "http://%s/api/printer" % self.ipAddr
-		r = requests.get(url, data={}, headers=self.header, timeout=0.1)
+		r = requests.get(url, data={}, headers=self.header, timeout=to)
 		try:
 			rv = r.json()
 		except:
 			rv = None
 		return r.status_code, rv
 	
-
-	
-
-# def do2():
-# 	url = "%s/api/files" % urlPrefix
-# 	print "sending request"
-# 	req = requests.get(url, data=data, headers=headers)
-# 	print "back from sending request"
-# 	pprint.pprint(req)
-# 	pprint.pprint(req.json())
-# 
-# 
-# #requests.post('http://192.168.123.102/api/files/local', files={'file': open(sys.argv[1], 'rb')}, headers={'Host': '192.168.123.102', 'X-Api-Key': 'XXXXXXXXXXX'})
-# def do3():
-# 	fn = "test.gcode"
-# 	files = {'file': ('test.gcode', open(fn, 'rb'), 'application/octet-stream')}
-# 	url = "%s/api/files/local" % urlPrefix
-# 	req = requests.post(url, files=files, headers=headers)
-# 	pprint.pprint(req)
-# 	pprint.pprint(req.json())
-	
-
-# ApiKeys = { "dbot" : "C01B6FFBFE8747EA80AACF809F7F7A04"}
-# IPAddrs = { "dbot" : "192.168.1.190"}
-# pname = "dbot"
-# 
-# ps = PrinterServer(ApiKeys[pname], IPAddrs[pname])
-# 
-# #ps.printHead.jog((50, 50, 0), speed=900)
-# #ps.printHead.home(True, True, False)
-# 
-# rc, j = ps.state()
-# print "status code: ", rc
-# pprint.pprint(j)
-# 
-# rc, j = ps.tool.state()
-# print "status code: ", rc
-# pprint.pprint(j)
-# 
-# rc, j = ps.bed.state()
-# print "status code: ", rc
-# pprint.pprint(j)
-# 
-# rc, j = ps.job.state()
-# print "status code: ", rc
-# pprint.pprint(j)
-
-

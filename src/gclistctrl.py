@@ -15,7 +15,7 @@ class GcodeListCtrl(wx.ListCtrl):
 		colWidths = [300]
 		colTitles = [""]
 		
-		totwidth = 20;
+		totwidth = 20
 		for w in colWidths:
 			totwidth += w
 			
@@ -78,9 +78,9 @@ class GcodeListCtrl(wx.ListCtrl):
 	
 	def getBracket(self):
 		if self.bracketStart is None or self.bracketEnd is None or self.startLine is None:
-			return (None, None)
+			return None, None
 		
-		return (self.bracketStart+self.startLine, self.bracketEnd+self.startLine)
+		return self.bracketStart+self.startLine, self.bracketEnd+self.startLine
 		
 	def setLineNumbers(self, flag=True):
 		self.useLineNumbers = flag

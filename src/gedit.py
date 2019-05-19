@@ -25,6 +25,9 @@ from uploaddest import UploadDestinationDlg
 from downloadsrc import DownloadSourceDlg 
 
 gcRegex = re.compile("[-]?\d+[.]?\d*")
+
+
+
 BUTTONDIM = (48, 48)
 TITLE_PREFIX = "G Code Analyze/Edit"
 reX = re.compile("(.*[xX])([0-9\.]+)(.*)")
@@ -94,7 +97,7 @@ class LegendDlg(wx.Frame):
 		self.Fit()
 		self.Show()
 
-	def onClose(self, evt):
+	def onClose(self, _):
 		self.parent.legendClosed()
 		self.Destroy()
 
@@ -110,8 +113,18 @@ class GEditDlg(wx.Frame):
 		self.Bind(wx.EVT_CLOSE, self.onClose)
 		self.settings = Settings(cmdFolder)
 		self.propDlg = None
+		self.editDlg = None
 		self.legend = None
-		
+		self.currentTool = 0
+
+		self.paramStr = None
+		self.totalTime = None
+		self.layerTimes = None
+
+		self.totalTimeStr = None
+		self.layerTimeStr = None
+
+
 		self.images = Images(os.path.join(cmdFolder, "images"))
 		
 		self.shiftX = 0
@@ -119,6 +132,7 @@ class GEditDlg(wx.Frame):
 		self.modified = False
 		self.filename = None
 		self.downloadSource = None
+		self.gcode = None
 		
 		self.gObj = self.loadGCode(self.filename)
 		if self.gObj is not None:
@@ -407,7 +421,7 @@ class GEditDlg(wx.Frame):
 		if self.gObj is not None:
 			self.enableButtons()
 			
-	def onLegend(self, evt):
+	def onLegend(self, _):
 		if self.legend is None:
 			self.legend = LegendDlg(self)
 			self.legend.Show()
@@ -418,12 +432,12 @@ class GEditDlg(wx.Frame):
 	def legendClosed(self):
 		self.legend = None
 			
-	def onBracketStart(self, evt):
+	def onBracketStart(self, _):
 		b = self.lcGCode.setBracketStart()
 		self.gcFrame.setBracket(b)
 		self.enableBracketDel(b)
 
-	def onBracketEnd(self, evt):
+	def onBracketEnd(self, _):
 		b = self.lcGCode.setBracketEnd()
 		self.gcFrame.setBracket(b)
 		self.enableBracketDel(b)
@@ -437,7 +451,7 @@ class GEditDlg(wx.Frame):
 		else:
 			self.bBracketDel.Enable(True)
 		
-	def onBracketDel(self, evt):
+	def onBracketDel(self, _):
 		b = self.lcGCode.getBracket()
 		if b[0] is None or b[1] is None:
 			return
@@ -471,10 +485,10 @@ class GEditDlg(wx.Frame):
 		self.modified = flag
 		self.updateTitle()
 		
-	def onExport(self, evt):
+	def onExport(self, _):
 		pass
 		
-	def onOpen(self, evt):
+	def onOpen(self, _):
 		if self.modified:
 			dlg = wx.MessageDialog(self,
 				"You have unsaved changes.\nAre you sure you want to open a different file?",
@@ -487,7 +501,7 @@ class GEditDlg(wx.Frame):
 
 		self.gcodeFileDialog()
 		
-	def onInfo(self, evt):
+	def onInfo(self, _):
 		if self.propDlg is not None:
 			return
 		
@@ -569,8 +583,9 @@ class GEditDlg(wx.Frame):
 			style=wx.FD_OPEN)
 
 		rc = dlg.ShowModal()
+		path = None
 		if rc == wx.ID_OK:
-			path = dlg.GetPath().encode('ascii','ignore')
+			path = dlg.GetPath()   #.encode('ascii','ignore')
 		dlg.Destroy()
 		if rc != wx.ID_OK:
 			return
@@ -632,13 +647,15 @@ class GEditDlg(wx.Frame):
 		self.bBracketStart.Enable(flag)
 		self.bBracketEnd.Enable(flag)
 		self.enableBracketDel()
-		self.bUploadFile.Enable(flag)
-		self.bDownloadFile.Enable(flag)
+		if len(self.settings.printers) > 0:
+			self.bUploadFile.Enable(flag)
+
 		if openButtons:
 			self.bOpen.Enable(flag)
-			self.bDownloadFile.Enable(flag)
+			if len(self.settings.printers) > 0:
+				self.bDownloadFile.Enable(flag)
 			
-	def doShiftModel(self, evt):
+	def doShiftModel(self, _):
 		dlg = ShiftModelDlg(self, self.gObj, self.settings.buildarea)
 		dlg.CenterOnScreen()
 		rc = dlg.ShowModal()
@@ -691,10 +708,12 @@ class GEditDlg(wx.Frame):
 			
 		return "%s%s%s" % (m.group(1), str(value), m.group(3))
 	
-	def onModTemps(self, evt):
+	def onModTemps(self, _):
 		dlg = ModifyTempsDlg(self, self.gObj, self.settings.platemps, self.settings.abstemps)
 		dlg.CenterOnScreen()
 		rc = dlg.ShowModal()
+		bed = None
+		hes = None
 		if rc == wx.ID_OK:
 			bed, hes = dlg.getResult()
 			
@@ -743,11 +762,12 @@ class GEditDlg(wx.Frame):
 		value += float(difference)
 		return "%s%s%s" % (m.group(1), str(value), m.group(3))
 	
-	def onModSpeed(self, evt):
+	def onModSpeed(self, _):
 		dlg = ModifySpeedDlg(self)
 		dlg.CenterOnScreen()
 		val = dlg.ShowModal()
 
+		modSpeeds = None
 		if val == wx.ID_OK:
 			modSpeeds = dlg.getResult()
 			
@@ -766,7 +786,8 @@ class GEditDlg(wx.Frame):
 		self.lcGCode.refreshList()
 		self.updateInfoDlg(self.currentLayer)
 
-	def applySingleSpeedChange(self, s, speeds):
+	@staticmethod
+	def applySingleSpeedChange(s, speeds):
 		if "m117" in s or "M117" in s:
 			return s
 
@@ -783,12 +804,13 @@ class GEditDlg(wx.Frame):
 		value = float(m.group(2)) * float(factor)
 		return "%s%s%s" % (m.group(1), str(value), m.group(3))
 	
-	def onFilChange(self, evt):
+	def onFilChange(self, _):
 		insertPoint = self.lcGCode.getSelectedLine()
 		dlg = FilamentChangeDlg(self, self.gcode, self.gObj,
 				insertPoint,
 				self.gObj[self.currentLayer].printHeight())
 		rc = dlg.ShowModal()
+		ngc = None
 		if rc == wx.ID_OK:
 			ngc = dlg.getValues()
 			
@@ -814,7 +836,7 @@ class GEditDlg(wx.Frame):
 		self.lcGCode.setLayerBounds(self.gObj.getGCodeLines(self.currentLayer))
 		self.updateInfoDlg(self.currentLayer)
 	
-	def onEditGCode(self, evt):
+	def onEditGCode(self, _):
 		self.editDlg = EditGCodeDlg(self, self.gcode, "<live buffer>", self.editClosed)
 		self.editDlg.CenterOnScreen()
 		self.editDlg.Show()
@@ -822,6 +844,7 @@ class GEditDlg(wx.Frame):
 		
 	def editClosed(self, rc):
 		self.enableButtons(flag=True, openButtons=True)
+		data = None
 		if rc == wx.ID_OK:
 			data = self.editDlg.getData()
 			
@@ -846,23 +869,23 @@ class GEditDlg(wx.Frame):
 		self.lcGCode.refreshList()
 		self.updateInfoDlg(0)
 			
-	def onCbShowMoves(self, evt):
+	def onCbShowMoves(self, _):
 		self.settings.showmoves = self.cbShowMoves.GetValue()
 		self.gcFrame.setShowMoves(self.settings.showmoves)
 	
-	def onCbShowPrevious(self, evt):
+	def onCbShowPrevious(self, _):
 		self.settings.showprevious = self.cbShowPrevious.GetValue()
 		self.gcFrame.setShowPrevious(self.settings.showprevious)
 	
-	def onCbShowRetractions(self, evt):
+	def onCbShowRetractions(self, _):
 		self.settings.showretractions = self.cbShowRetractions.GetValue()
 		self.gcFrame.setShowRetractions(self.settings.showretractions)
 	
-	def onCbShowRevRetractions(self, evt):
+	def onCbShowRevRetractions(self, _):
 		self.settings.showrevretractions = self.cbShowRevRetractions.GetValue()
 		self.gcFrame.setShowRevRetractions(self.settings.showrevretractions)
 		
-	def onCmbTool(self, evt):
+	def onCmbTool(self, _):
 		sel = self.cmbTool.GetStringSelection()
 		if sel == "" or sel == "None":
 			sel = None
@@ -874,18 +897,18 @@ class GEditDlg(wx.Frame):
 				
 		self.gcFrame.setHilightTool(sel)
 		
-	def onCbLineNbrs(self, evt):
+	def onCbLineNbrs(self, _):
 		self.settings.uselinenbrs = self.cbLineNbrs.GetValue()
 		self.lcGCode.setLineNumbers(self.settings.uselinenbrs)
 		
-	def onLayerScroll(self, evt):
+	def onLayerScroll(self, _):
 		v = self.slLayers.GetValue()
 		if v == self.currentLayer:
 			return
 		
 		self.changeLayer(v)
 		
-	def onUp(self, evt):
+	def onUp(self, _):
 		lmax = self.slLayers.GetRange()[1]
 		if self.currentLayer >= lmax:
 			return
@@ -893,27 +916,36 @@ class GEditDlg(wx.Frame):
 		v = self.currentLayer + 1
 		self.changeLayer(v)
 	
-	def onDown(self, evt):
+	def onDown(self, _):
 		if self.currentLayer <= 0:
 			return
 		
 		v = self.currentLayer - 1
 		self.changeLayer(v)
 		
-	def onUploadFile(self, evt):
+	def onUploadFile(self, _):
 		pname = self.chOctPrint.GetString(self.chOctPrint.GetSelection())
 		bn = os.path.basename(self.filename)
 		ps = PrinterServer(self.settings.apikey[pname], self.settings.ipaddr[pname])
 		dlg = UploadDestinationDlg(self, pname, ps, bn)
 		rc = dlg.ShowModal()
+		fn = None
 		if rc == wx.ID_OK:
 			fn = dlg.getFn()
 		
 		dlg.Destroy()
 		if rc == wx.ID_OK:
-			ps.gfile.uploadString("\n".join(self.gcode), fn)
+			rc, rv = ps.gfile.uploadString("\n".join([x.strip() for x in self.gcode]), fn, to=20)
+			if rc >= 400:
+				dlg = wx.MessageDialog(self, "Error code from file upload: %d" % rc,
+									   "Upload Error", wx.OK | wx.ICON_ERROR)
+			else:
+				dlg = wx.MessageDialog(self, "File '%s' succcessfully uploaded." % fn,
+									   "Upload Successful", wx.OK | wx.ICON_INFORMATION)
+			dlg.ShowModal()
+			dlg.Destroy()
 
-	def onDownloadFile(self, evt):
+	def onDownloadFile(self, _):
 		if self.modified:
 			dlg = wx.MessageDialog(self,
 				"You have unsaved changes.\nAre you sure you want to download a file?",
@@ -928,6 +960,8 @@ class GEditDlg(wx.Frame):
 		ps = PrinterServer(self.settings.apikey[pname], self.settings.ipaddr[pname])
 		dlg = DownloadSourceDlg(self, pname, ps)
 		rc = dlg.ShowModal()
+		fn = None
+		url = None
 		if rc == wx.ID_OK:
 			fn = dlg.getFn()
 			url = dlg.getUrl()
@@ -939,7 +973,7 @@ class GEditDlg(wx.Frame):
 		if url is None:
 			return 
 		
-		rc, gc = ps.gfile.downloadFile(url)
+		rc, gc = ps.gfile.downloadFile(url, to=20)
 		if rc >= 400:
 			dlg = wx.MessageDialog(self, "Error code from file download: %d" % rc,
 					"Download Error", wx.OK | wx.ICON_ERROR)
@@ -947,7 +981,11 @@ class GEditDlg(wx.Frame):
 			dlg.Destroy()
 
 		else:
-			self.gcode = gc.split("\n")
+			gc = gc.split("\n")
+			if self.settings.stripdownloadM117IND:
+				self.gcode = [x for x in gc if not x.startswith("M117 IND")]
+			else:
+				self.gcode = gc
 			self.gObj = self.buildModel()
 			self.downloadSource = pname
 			self.setScreen(fn)
@@ -970,7 +1008,7 @@ class GEditDlg(wx.Frame):
 	def reportSelectedLine(self, ln):
 		self.gcFrame.reportSelectedLine(ln)
 					
-	def onClose(self, evt):
+	def onClose(self, _):
 		self.settings.save()
 		if self.modified:
 			dlg = wx.MessageDialog(self,
@@ -1014,7 +1052,7 @@ class GEditDlg(wx.Frame):
 				continue
 			
 			p = re.split("\\s+", gl, 1)
-			
+
 			params = {}
 			if not (p[0].strip() in ["M117", "m117"]):
 				if len(p) >= 2:
@@ -1052,10 +1090,12 @@ class GEditDlg(wx.Frame):
 	def _get_float(self,which):
 		try:
 			return float(gcRegex.findall(self.paramStr.split(which)[1])[0])
-		except:
-			print "exception: ", self.paramStr
-	
-	def onSaveAs(self, evt):
+		except ValueError:
+			return 0.0
+		except IndexError:
+			return 0.0
+
+	def onSaveAs(self, _):
 		wildcard = "GCode (*.gcode)|*.gcode;*.GCODE"
 
 		dlg = wx.FileDialog(
@@ -1084,7 +1124,7 @@ class GEditDlg(wx.Frame):
 			self.saveFile(self.filename)
 		
 	def saveFile(self, path):			
-		fp = file(path, 'w')
+		fp = open(path, 'w')
 		
 		for ln in self.gcode:
 			fp.write("%s\n" % ln.rstrip())
@@ -1101,9 +1141,14 @@ class GEditDlg(wx.Frame):
 		dlg.ShowModal()
 		dlg.Destroy()
 		
-	def onSaveLayers(self, evt):
+	def onSaveLayers(self, _):
 		dlg = SaveLayerDlg(self, self.gObj)
 		rc = dlg.ShowModal()
+		sx = 0
+		ex = 0
+		ereset = None
+		zmodify = None
+		zdelta = None
 		if rc == wx.ID_OK:
 			sx, ex, ereset, zmodify, zdelta = dlg.getValues()
 			
@@ -1133,7 +1178,7 @@ class GEditDlg(wx.Frame):
 		if ext == "":
 			path += ".gcode"
 			
-		fp = file(path, 'w')
+		fp = open(path, 'w')
 		
 		if ereset:
 			fp.write("G92 E%0.5f\n" % self.gObj[sx].startingE())
@@ -1150,7 +1195,8 @@ class GEditDlg(wx.Frame):
 		dlg.ShowModal()
 		dlg.Destroy()
 		
-	def applyZMod(self, ln, modflag):
+	@staticmethod
+	def applyZMod(ln, modflag):
 		if not modflag:
 			return ln
 		
@@ -1158,9 +1204,8 @@ class GEditDlg(wx.Frame):
 			
 class App(wx.App):
 	def OnInit(self):
-		self.frame = GEditDlg()
-		#self.frame.Show()
-		self.SetTopWindow(self.frame)
+		frame = GEditDlg()
+		self.SetTopWindow(frame)
 		return True
 
 app = App(False)

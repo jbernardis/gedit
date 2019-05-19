@@ -1,5 +1,5 @@
 import math
-from gobject import gobject, layer, segment, ST_MOVE, ST_PRINT, ST_RETRACTION, ST_REV_RETRACTION;
+from gobject import gobject, layer, segment, ST_MOVE, ST_PRINT, ST_RETRACTION, ST_REV_RETRACTION
 
 class CNC:
 	def __init__(self, acceleration, ht=0.2):
@@ -7,6 +7,8 @@ class CNC:
 		self.curY = 0
 		self.curZ = 0
 		self.curE = 0
+
+		self.sourceLine = None
 		
 		self.gObject = gobject()
 		self.currentLayer = layer(0, 0)
@@ -35,6 +37,7 @@ class CNC:
 		
 		self.speed = 0
 		self.relative = False
+		self.relativeE = False
 		
 		self.lastSpeed = 0.0
 		self.lastDx = 0.0
@@ -52,6 +55,8 @@ class CNC:
 			"G90": self.setAbsolute,
 			"G91": self.setRelative,
 			"G92": self.axisReset,
+			"M82": self.setAbsoluteE,
+			"M83": self.setRelativeE,
 			"M140": self.tempBed,
 			"M190": self.tempBed,
 			"M104": self.tempHE,
@@ -64,7 +69,7 @@ class CNC:
 			return self.dispatch[cmd](parms, sourceLine)
 		elif cmd.startswith("T"):
 			nt = int(cmd.strip()[1:])
-			if nt > 0 and nt < 4:
+			if 0 < nt < 4:
 				if nt != self.curTool:
 					self.currentLayer.addSegment(self.currentSegment)
 					self.curTool = nt
@@ -87,13 +92,14 @@ class CNC:
 		z = self.curZ
 		e = self.curE
 		self.checkCoords(parms)
-		
+
 		self.lastSpeed = self.speed
 		if 'F' in parms.keys():
 			self.speed = float(parms["F"]) / 60.0
 			
 		eUsed = self.curE - e
-		
+
+
 		if eUsed == 0:
 			st = ST_MOVE
 		else:
@@ -103,7 +109,7 @@ class CNC:
 		dy = self.curY - y
 		dz = self.curZ - z
 		
-		calcTime = 0.0
+		#calcTime = 0.0
 		dist = math.hypot(dx, dy)
 		if dist == 0 and dz == 0 and eUsed != 0:
 			if eUsed > 0:
@@ -120,14 +126,12 @@ class CNC:
 
 		if dx * self.lastDx + dy * self.lastDy <= 0:
 			self.lastSpeed = 0
-				
-		de = self.curE - e
-			
+
 		if dist == 0:
 			if dz > 0:
 				dist = dz
 			else:
-				dist = de
+				dist = eUsed
 				
 		if self.speed == self.lastSpeed:
 			calcTime = dist / self.speed if self.speed != 0 else 0
@@ -168,7 +172,7 @@ class CNC:
 			self.currentSegment.addPoint(p, sourceLine, eUsed, lineWidth, speed)
 			
 	def getGObject(self):
-		self.currentLayer.addSegment(self.currentSegment);
+		self.currentLayer.addSegment(self.currentSegment)
 		self.gObject.addLayer(self.currentLayer)
 		self.layerTimes.append(self.layerTime)
 		self.gObject.setMaxLine(self.sourceLine)
@@ -189,7 +193,7 @@ class CNC:
 	def getTimes(self):
 		return self.totalTime, self.layerTimes
 	
-	def dwell(self, parms, sourceLine):
+	def dwell(self, parms, _):
 		ct = 0
 		if 'P' in parms.keys():
 			ct = float(parms['P'])/1000.0
@@ -199,10 +203,12 @@ class CNC:
 		self.totalTime += ct
 		return ct
 		
-	def setInches(self, parms, sourceLine):
+	@staticmethod
+	def setInches(*_):
 		return 0
-		
-	def setMillimeters(self, parms, sourceLine):
+
+	@staticmethod
+	def setMillimeters(*_):
 		return 0
 
 	def home(self, parms, sourceLine):
@@ -224,16 +230,24 @@ class CNC:
 			
 		self.recordPoint((self.curX, self.curY), self.curZ, ST_MOVE, sourceLine, self.curE, 0, 0, 0)
 		return 0
-		
-	def setAbsolute(self, parms, sourceLine):
+
+	def setAbsolute(self, *_):
 		self.relative = False
 		return 0
-		
-	def setRelative(self, parms, sourceLine):
+
+	def setRelative(self, *_):
 		self.relative = True
 		return 0
-		
-	def tempBed(self, parms, sourceLine):
+
+	def setAbsoluteE(self, *_):
+		self.relativeE = False
+		return 0
+
+	def setRelativeE(self, *_):
+		self.relativeE = True
+		return 0
+
+	def tempBed(self, parms, _):
 		if 'S' in parms.keys():
 			t = float(parms['S'])
 			if t < self.minBedTemp and t != 0:
@@ -242,7 +256,7 @@ class CNC:
 				self.maxBedTemp = t
 		return 0
 		
-	def tempHE(self, parms, sourceLine):
+	def tempHE(self, parms, _):
 		if 'S' in parms.keys():
 			t = float(parms['S'])
 			if t < self.minHETemp[self.curTool] and t != 0:
@@ -251,7 +265,7 @@ class CNC:
 				self.maxHETemp[self.curTool] = t
 		return 0
 		
-	def axisReset(self, parms, sourceLine):
+	def axisReset(self, parms, _):
 		if 'X' in parms.keys():
 			self.curX = float(parms['X'])
 		if 'Y' in parms.keys():
@@ -270,8 +284,6 @@ class CNC:
 				self.curY += float(parms["Y"])
 			if 'Z' in parms.keys():
 				self.curZ += float(parms["Z"])
-			if 'E' in parms.keys():
-				self.curE += float(parms["E"])
 		else:
 			if 'X' in parms.keys():
 				self.curX = float(parms["X"])
@@ -279,7 +291,11 @@ class CNC:
 				self.curY = float(parms["Y"])
 			if 'Z' in parms.keys():
 				self.curZ = float(parms["Z"])
-			if 'E' in parms.keys():
+
+		if 'E' in parms.keys():
+			if self.relativeE:
+				self.curE += float(parms["E"])
+			else:
 				self.curE = float(parms["E"])
 		
 

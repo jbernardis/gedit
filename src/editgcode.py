@@ -31,6 +31,9 @@ class myEditor(editor.Editor):
 		editor.Editor.__init__(self, parent, iD, style=wx.SUNKEN_BORDER)
 		self.findData = wx.FindReplaceData()
 		self.findData.SetFlags(0x01)
+
+		self.cx = 0
+		self.cy = 0
 		
 	def BindFindEvents(self, win):
 		win.Bind(wx.EVT_FIND, self.OnFind)
@@ -48,13 +51,13 @@ class myEditor(editor.Editor):
 		action['f'] = self.doFind
 		action['r'] = self.doFindReplace
 		
-	def doFind(self, evt):
+	def doFind(self, _):
 		dlg = wx.FindReplaceDialog(self, self.findData, "Find")
 		self.BindFindEvents(dlg)
 		#dlg.SetFocus()
 		dlg.Show(True)
 	
-	def doFindReplace(self, evt):
+	def doFindReplace(self, _):
 		dlg = wx.FindReplaceDialog(self, self.findData, "Find/Replace", wx.FR_REPLACEDIALOG)
 		self.BindFindEvents(dlg)
 		#dlg.SetFocus()
@@ -157,13 +160,13 @@ class myEditor(editor.Editor):
 						if m[i][0] >= cx: # found one
 							if replace:
 								buf[cy] = buf[cy][:m[i][0]] + replace + buf[cy][m[i][0]+len(m[i][1]):]
-							return([m[i][0], cy, m[i][1]])
+							return [m[i][0], cy, m[i][1]]
 				else:		
 					for i in range(len(m), 0, -1):
 						if (m[i-1][0] <= cx) or (cx == -1): # found one
 							if replace:
 								buf[cy] = buf[cy][:m[i-1][0]] + replace + buf[cy][m[i-1][0]+len(m[i-1][1]):]
-							return([m[i-1][0], cy, m[i-1][1]])
+							return [m[i-1][0], cy, m[i-1][1]]
 
 			# no matches - move to the next line
 			lct += 1
@@ -179,7 +182,8 @@ class myEditor(editor.Editor):
 		return None
 			
 		
-	def OnFindClose(self, evt):
+	@staticmethod
+	def OnFindClose(evt):
 		evt.GetDialog().Destroy()
 			
 
@@ -189,8 +193,12 @@ class EditGCodeDlg(wx.Dialog):
 	def __init__(self, parent, gcode, title, cbClose):
 		wx.Dialog.__init__(self, parent, wx.ID_ANY, "Edit GCode: "+title, size=(DLGWIDTH, 804))
 		self.startGCode = gcode	
-		self.cbClose = cbClose	
-		
+		self.cbClose = cbClose
+		self.ed = None
+		self.editbuffer = None
+		self.font12bold = None
+		self.stPosition = None
+
 		wx.CallAfter(self.finishInit)
 
 	def finishInit(self):
@@ -233,10 +241,10 @@ class EditGCodeDlg(wx.Dialog):
 		except AttributeError:
 			pass
 
-	def doSave(self, evt):
+	def doSave(self, _):
 		self.cbClose(wx.ID_OK)
 		
-	def doCancel(self, evt):
+	def doCancel(self, _):
 		if self.hasChanged():
 			askok = wx.MessageDialog(self, "Are you Sure you want to Cancel and lose your changes?",
 				'Lose Changes', wx.YES_NO | wx.NO_DEFAULT | wx.ICON_INFORMATION)

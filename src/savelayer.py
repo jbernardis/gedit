@@ -78,18 +78,18 @@ class SaveLayerDlg(wx.Dialog):
 		self.SetSizer(sizer)
 		sizer.Fit(self)
 		
-	def onOK(self, evt):
+	def onOK(self, _):
 		self.EndModal(wx.ID_OK)
 		
-	def onCancel(self, evt):
+	def onCancel(self, _):
 		self.EndModal(wx.ID_CANCEL)
 		
-	def onLb(self, evt):
+	def onLb(self, _):
 		s = self.lbStart.GetSelection()
 		e = self.lbEnd.GetSelection()
 		self.bOk.Enable(s <= e)
 		
-	def onCbZModify(self, evt):
+	def onCbZModify(self, _):
 		self.tcZDelta.Enable(self.cbZModify.GetValue())
 		
 		

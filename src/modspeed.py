@@ -18,7 +18,7 @@ class ModifySpeedDlg(wx.Dialog):
 			style = wx.SL_HORIZONTAL | wx.SL_AUTOTICKS | wx.SL_LABELS)
 		self.modExt.Bind(wx.EVT_SCROLL_CHANGED, self.onSpinExt)
 		self.modExt.Bind(wx.EVT_MOUSEWHEEL, self.onMouseExt)
-		self.modExt.SetPageSize(1);
+		self.modExt.SetPageSize(1)
 
 		b = wx.StaticBox(self, wx.ID_ANY, "Extrusion Speed Percent")
 		sbox = wx.StaticBoxSizer(b, wx.VERTICAL)
@@ -30,7 +30,7 @@ class ModifySpeedDlg(wx.Dialog):
 			style = wx.SL_HORIZONTAL | wx.SL_AUTOTICKS | wx.SL_LABELS)
 		self.modMove.Bind(wx.EVT_SCROLL_CHANGED, self.onSpinMove)
 		self.modMove.Bind(wx.EVT_MOUSEWHEEL, self.onMouseMove)
-		self.modMove.SetPageSize(1);
+		self.modMove.SetPageSize(1)
 
 		b = wx.StaticBox(self, wx.ID_ANY, "Movement Speed Percent")
 		sbox = wx.StaticBoxSizer(b, wx.VERTICAL)
@@ -78,7 +78,7 @@ class ModifySpeedDlg(wx.Dialog):
 			l -= 1
 		else:
 			l += 1
-		if l >= 25 and l <= 200:
+		if 25 <= l <= 200:
 			self.extSpeed = l
 			self.modExt.SetValue(self.extSpeed)
 			self.checkStatus()
@@ -89,11 +89,11 @@ class ModifySpeedDlg(wx.Dialog):
 			l -= 1
 		else:
 			l += 1
-		if l >= 25 and l <= 200:
+		if 25 <= l <= 200:
 			self.moveSpeed = l
 			self.modMove.SetValue(self.moveSpeed)
 			self.checkStatus()
 	
 	def getResult(self):
-		return (self.extSpeed, self.moveSpeed)
+		return self.extSpeed, self.moveSpeed
 

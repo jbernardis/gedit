@@ -1,5 +1,3 @@
-import math
-
 ST_MOVE = 0
 ST_RETRACTION = -1
 ST_REV_RETRACTION = -2
@@ -46,7 +44,7 @@ class segment:
 		if len(self.lineRef) == 0:
 			return False
 		
-		return self.lineRef[0] <= ln and ln <= self.lineRef[-1]
+		return self.lineRef[0] <= ln <= self.lineRef[-1]
 	
 	def getHilitedPoint(self, ln):
 		for i in range(len(self.points)):
@@ -99,7 +97,7 @@ class segment:
 		self.__lindex__ = 0
 		return self
 	
-	def next(self):
+	def __next__(self):
 		if self.__lindex__ < self.__len__():
 			i = self.__lindex__
 			self.__lindex__ += 1
@@ -122,16 +120,16 @@ class layer:
 		self.printSegments = 0
 		self.eUsed = [0.0, 0.0, 0.0, 0.0]
 		
-	def addSegment(self, segment):
-		if segment.segmentType() == ST_PRINT:
+	def addSegment(self, seg):
+		if seg.segmentType() == ST_PRINT:
 			self.printSegments += 1
-			if segment.xmax > self.xmax: self.xmax = segment.xmax
-			if segment.xmin < self.xmin: self.xmin = segment.xmin
-			if segment.ymax > self.ymax: self.ymax = segment.ymax
-			if segment.ymin < self.ymin: self.ymin = segment.ymin
+			if seg.xmax > self.xmax: self.xmax = seg.xmax
+			if seg.xmin < self.xmin: self.xmin = seg.xmin
+			if seg.ymax > self.ymax: self.ymax = seg.ymax
+			if seg.ymin < self.ymin: self.ymin = seg.ymin
 			
-		self.segments.append(segment)
-		t, e = segment.getFilament()
+		self.segments.append(seg)
+		t, e = seg.getFilament()
 		self.eUsed[t] += e
 		
 	def getFilament(self):
@@ -171,7 +169,7 @@ class layer:
 		self.__lindex__ = 0
 		return self
 	
-	def next(self):
+	def __next__(self):
 		if self.__lindex__ < self.__len__():
 			i = self.__lindex__
 			self.__lindex__ += 1
@@ -188,6 +186,8 @@ class gobject:
 		self.xmax = -99999
 		self.ymin = 99999
 		self.ymax = -99999
+		self.bed = 0
+		self.hes = 0
 		self.maxLine = 0
 		self.layers = []
 		self.filamentLayers = None
@@ -199,14 +199,14 @@ class gobject:
 	def getMaxLine(self):
 		return self.maxLine
 		
-	def addLayer(self, layer):
-		if layer.printSegments > 0:
-			if layer.xmax > self.xmax: self.xmax = layer.xmax
-			if layer.xmin < self.xmin: self.xmin = layer.xmin
-			if layer.ymax > self.ymax: self.ymax = layer.ymax
-			if layer.ymin < self.ymin: self.ymin = layer.ymin
-		self.layers.append(layer)
-		le = layer.getFilament()
+	def addLayer(self, lyr):
+		if lyr.printSegments > 0:
+			if lyr.xmax > self.xmax: self.xmax = lyr.xmax
+			if lyr.xmin < self.xmin: self.xmin = lyr.xmin
+			if lyr.ymax > self.ymax: self.ymax = lyr.ymax
+			if lyr.ymin < self.ymin: self.ymin = lyr.ymin
+		self.layers.append(lyr)
+		le = lyr.getFilament()
 		for i in range(len(self.eUsed)):
 			self.eUsed[i] += le[i]
 			
@@ -264,7 +264,7 @@ class gobject:
 		return self.layers[lx].minMaxXY()
 	
 	def getTemps(self):
-		return (self.bed, self.hes)
+		return self.bed, self.hes
 	
 	def setTemps(self, bed, hes):
 		self.bed = bed
@@ -280,7 +280,7 @@ class gobject:
 		self.__lindex__ = 0
 		return self
 	
-	def next(self):
+	def __next__(self):
 		if self.__lindex__ < self.__len__():
 			i = self.__lindex__
 			self.__lindex__ += 1

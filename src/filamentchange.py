@@ -102,16 +102,16 @@ class FilamentChangeDlg(wx.Dialog):
 		
 		self.updateDlg()
 		
-	def onBOk(self, evt):
+	def onBOk(self, _):
 		self.EndModal(wx.ID_OK)
 		
-	def onBCancel(self, evt):
+	def onBCancel(self, _):
 		self.EndModal(wx.ID_CANCEL)
 		
 	def getValues(self):
 		return self.newGCode
 	
-	def updateDlg(self, *arg):
+	def updateDlg(self, *_):
 		absolute = self.cbAbsE.IsChecked()
 		self.newGCode = []
 		
@@ -212,7 +212,7 @@ class FilamentChangeDlg(wx.Dialog):
 		nlines = len(self.gcode)		
 		for dl in range(contextLines):
 			if self.insertPoint+dl == nlines:
-				self.text.appendText("<end of file>\n")
+				self.text.AppendText("<end of file>\n")
 			elif self.insertPoint+dl > nlines:
 				pass
 			else:

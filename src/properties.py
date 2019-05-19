@@ -85,7 +85,7 @@ class PropertiesDlg(wx.Frame):
 		self.SetClientSize((600, n*lines+24))
 		pg.SetSplitterLeft()
 		
-	def onClose(self, evt):
+	def onClose(self, _):
 		if self.callback is not None:
 			self.callback()
 			self.Destroy()
@@ -106,7 +106,7 @@ class PropertiesDlg(wx.Frame):
 			return
 
 		if pid not in self.properties.keys():
-			print "Unknown property key: %s" % pid
+			print("Unknown property key: %s" % pid)
 			return
 		
 		if pid == PropertyEnum.fileName:

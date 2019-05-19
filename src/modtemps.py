@@ -40,14 +40,14 @@ class ModifyTempsDlg(wx.Dialog):
 			style = wx.SL_HORIZONTAL | wx.SL_AUTOTICKS | wx.SL_LABELS)
 		self.modBed.Bind(wx.EVT_SCROLL_CHANGED, self.onSpinBed)
 		self.modBed.Bind(wx.EVT_MOUSEWHEEL, self.onMouseBed)
-		self.modBed.SetPageSize(1);
+		self.modBed.SetPageSize(1)
 
 		b = wx.StaticBox(self, wx.ID_ANY, "Bed Temperature Delta")
 		sbox = wx.StaticBoxSizer(b, wx.VERTICAL)
 		sbox.Add(self.modBed, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 		slidesizer.Add(sbox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 		
-		self.bedTemp = wx.StaticText(self, wx.ID_ANY, "");
+		self.bedTemp = wx.StaticText(self, wx.ID_ANY, "")
 		self.bedTemp.SetFont(ipfont)
 		slidesizer.Add(self.bedTemp, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 40)
 
@@ -59,28 +59,28 @@ class ModifyTempsDlg(wx.Dialog):
 				style = wx.SL_HORIZONTAL | wx.SL_AUTOTICKS | wx.SL_LABELS)
 			self.modHE[he].Bind(wx.EVT_SCROLL_CHANGED, self.onSpinHE)
 			self.modHE[he].Bind(wx.EVT_MOUSEWHEEL, self.onMouseHE)
-			self.modHE[he].SetPageSize(1);
+			self.modHE[he].SetPageSize(1)
 	
 			b = wx.StaticBox(self, wx.ID_ANY, "Hot End %d Delta" % self.heX[he])
 			sbox = wx.StaticBoxSizer(b, wx.VERTICAL)
 			sbox.Add(self.modHE[he], 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 			slidesizer.Add(sbox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 	
-			self.heTemp[he] = wx.StaticText(self, wx.ID_ANY, "");
+			self.heTemp[he] = wx.StaticText(self, wx.ID_ANY, "")
 			self.heTemp[he].SetFont(ipfont)
 			slidesizer.Add(self.heTemp[he], 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 40)
 
 		btn = wx.Button(self, wx.ID_ANY, "PLA->ABS", size=(85, 50))
 		btn.SetHelpText("Change from PLA profile to ABS")
 		self.Bind(wx.EVT_BUTTON, self.profilePLA2ABS, btn)
-		btnsizer.Add(btn);
+		btnsizer.Add(btn)
 		
 		btnsizer.AddSpacer(10)
 
 		btn = wx.Button(self, wx.ID_ANY, "ABS->PLA", size=(85, 50))
 		btn.SetHelpText("Change from ABS profile to PLA")
 		self.Bind(wx.EVT_BUTTON, self.profileABS2PLA, btn)
-		btnsizer.Add(btn);
+		btnsizer.Add(btn)
 		
 		btnsizer.AddSpacer(30)
 		
@@ -104,14 +104,14 @@ class ModifyTempsDlg(wx.Dialog):
 		self.SetSizer(sizer)
 		sizer.Fit(self)
 
-	def profilePLA2ABS(self, evt):
+	def profilePLA2ABS(self, _):
 		self.bedDelta = self.absTemp[0] - self.plaTemp[0]
 		self.heDelta = [0, 0, 0, 0]
 		for he in range(self.nHe):
 			self.heDelta[self.heX[he]] = self.absTemp[1] - self.plaTemp[1]
 		self.showTemps()
 
-	def profileABS2PLA(self, evt):
+	def profileABS2PLA(self, _):
 		self.bedDelta = self.plaTemp[0] - self.absTemp[0]
 		self.heDelta = [0, 0, 0, 0]
 		for he in range(self.nHe):
@@ -157,7 +157,7 @@ class ModifyTempsDlg(wx.Dialog):
 			l -= 1
 		else:
 			l += 1
-		if l >= MINBED and l <= MAXBED:
+		if MINBED <= l <= MAXBED:
 			self.bedDelta = l
 			self.showTemps()
 	
@@ -169,10 +169,10 @@ class ModifyTempsDlg(wx.Dialog):
 			l -= 1
 		else:
 			l += 1
-		if l >= MINHE and l <= MAXHE:
+		if MINHE <= l <= MAXHE:
 			self.heDelta[hx] = l
 			self.showTemps()
 			
 	def getResult(self):
-		return (self.bedDelta, self.heDelta)
+		return self.bedDelta, self.heDelta
 

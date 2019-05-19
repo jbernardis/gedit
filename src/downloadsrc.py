@@ -3,9 +3,6 @@ BUTTONDIM = (48, 48)
 
 class DownloadSourceDlg(wx.Dialog):
 	def __init__(self, parent, pname, ps):
-		def cmpFlst(a, b):
-			return cmp(a[0], b[0])
-		
 		wx.Dialog.__init__(self, parent, wx.ID_ANY, "Download from %s" % pname)
 		
 		self.parent = parent
@@ -15,7 +12,7 @@ class DownloadSourceDlg(wx.Dialog):
 		sizer = wx.BoxSizer(wx.VERTICAL)
 		btnsizer = wx.BoxSizer(wx.HORIZONTAL)
 		
-		flst = ps.gfile.listFiles()
+		flst = ps.gfile.listFiles(to=5)
 		if flst is None:
 			wx.CallAfter(self.notConnected)
 			return
@@ -24,7 +21,7 @@ class DownloadSourceDlg(wx.Dialog):
 			wx.CallAfter(self.noDownloads)
 			return
 		
-		self.flist = sorted(flst, cmpFlst)
+		self.flist = sorted(flst, key = lambda x: x[0])
 		
 		fl = [x[0] for x in self.flist]
 		self.ch = wx.Choice(self, wx.ID_ANY, choices=fl, size=(300, -1))
@@ -84,9 +81,9 @@ class DownloadSourceDlg(wx.Dialog):
 			
 		return self.flist[idx][1]
 		
-	def onOk(self, evt):
+	def onOk(self, _):
 		self.EndModal(wx.ID_OK)
 	
-	def onCancel(self, evt):
+	def onCancel(self, _):
 		self.EndModal(wx.ID_CANCEL)
 

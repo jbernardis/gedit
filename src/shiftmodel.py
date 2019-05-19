@@ -25,7 +25,7 @@ class ShiftModelDlg(wx.Dialog):
 			style = wx.SL_HORIZONTAL | wx.SL_AUTOTICKS | wx.SL_LABELS)
 		self.slideX.Bind(wx.EVT_SCROLL_CHANGED, self.onSpinX)
 		self.slideX.Bind(wx.EVT_MOUSEWHEEL, self.onMouseX)
-		self.slideX.SetPageSize(1);
+		self.slideX.SetPageSize(1)
 
 		b = wx.StaticBox(self, wx.ID_ANY, "X Axis")
 		sbox = wx.StaticBoxSizer(b, wx.VERTICAL)
@@ -37,7 +37,7 @@ class ShiftModelDlg(wx.Dialog):
 			style = wx.SL_VERTICAL | wx.SL_AUTOTICKS | wx.SL_LABELS | wx.SL_INVERSE)
 		self.slideY.Bind(wx.EVT_SCROLL_CHANGED, self.onSpinY)
 		self.slideY.Bind(wx.EVT_MOUSEWHEEL, self.onMouseY)
-		self.slideY.SetPageSize(1);
+		self.slideY.SetPageSize(1)
 
 		b = wx.StaticBox(self, wx.ID_ANY, "Y Axis")
 		sbox = wx.StaticBoxSizer(b, wx.VERTICAL)
@@ -74,7 +74,7 @@ class ShiftModelDlg(wx.Dialog):
 			l -= 1
 		else:
 			l += 1
-		if l >= self.minx and l <= self.maxx:
+		if self.minx <= l <= self.maxx:
 			self.shiftx = l
 			self.slideX.SetValue(l)
 			self.app.setShift(self.shiftx, self.shifty)	
@@ -85,7 +85,7 @@ class ShiftModelDlg(wx.Dialog):
 			l -= 1
 		else:
 			l += 1
-		if l >= self.miny and l <= self.maxy:
+		if self.miny <= l <= self.maxy:
 			self.shifty = l
 			self.slideY.SetValue(l)
 			self.app.setShift(self.shiftx, self.shifty)
