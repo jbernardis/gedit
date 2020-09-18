@@ -54,10 +54,10 @@ class SaveLayerDlg(wx.Dialog):
 		box.Add(vbox) #, 0, wx.GROW|wx.ALIGN_TOP)
 		box.AddSpacer(10)
 
-		sizer.Add(box, 0, wx.GROW|wx.ALIGN_CENTER_VERTICAL|wx.ALL, 5)
+		sizer.Add(box, 0, wx.GROW|wx.ALL, 5)
 
 		line = wx.StaticLine(self, -1, size=(20,-1), style=wx.LI_HORIZONTAL)
-		sizer.Add(line, 0, wx.GROW|wx.ALIGN_CENTER_VERTICAL|wx.RIGHT|wx.TOP, 5)
+		sizer.Add(line, 0, wx.GROW|wx.RIGHT|wx.TOP, 5)
 
 		btnsizer = wx.BoxSizer(wx.HORIZONTAL)
 

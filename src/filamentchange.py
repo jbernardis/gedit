@@ -80,7 +80,7 @@ class FilamentChangeDlg(wx.Dialog):
 		box.Add(self.text, 0, wx.GROW|wx.ALIGN_LEFT, 5)
 		box.AddSpacer(10)
 
-		sizer.Add(box, 0, wx.GROW|wx.ALIGN_CENTER_VERTICAL|wx.ALL, 5)
+		sizer.Add(box, 0, wx.GROW|wx.ALL, 5)
 
 		btnsizer = wx.BoxSizer(wx.HORIZONTAL)
 

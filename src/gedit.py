@@ -301,7 +301,7 @@ class GEditDlg(wx.Frame):
 		opszr.AddSpacer(10)
 		opszr.Add(self.bSaveLayers, 0, wx.TOP + wx.BOTTOM, 10)
 		opszr.AddSpacer(10)
-		btnszr.Add(opszr, 0, wx.ALIGN_CENTER_HORIZONTAL, 1)
+		btnszr.Add(opszr, 0) #, wx.ALIGN_CENTER_HORIZONTAL, 1)
 		
 		infoBox = wx.StaticBox(self, wx.ID_ANY, "  Information  ")
 		infoszr = wx.StaticBoxSizer(infoBox, wx.HORIZONTAL)
@@ -311,7 +311,7 @@ class GEditDlg(wx.Frame):
 		infoszr.Add(self.bLegend, 0, wx.TOP + wx.BOTTOM, 10)
 		infoszr.AddSpacer(10)
 		btnszr.AddSpacer(20)
-		btnszr.Add(infoszr, 0, wx.ALIGN_CENTER_HORIZONTAL, 1)
+		btnszr.Add(infoszr, 0) #, wx.ALIGN_CENTER_HORIZONTAL, 1)
 		
 		flBox = wx.StaticBox(self, wx.ID_ANY, "  Local Files  ")
 		flszr = wx.StaticBoxSizer(flBox, wx.HORIZONTAL)
@@ -323,7 +323,7 @@ class GEditDlg(wx.Frame):
 		flszr.Add(self.bSaveAs, 0, wx.TOP + wx.BOTTOM, 10)
 		flszr.AddSpacer(10)
 		btnszr.AddSpacer(20)
-		btnszr.Add(flszr, 0, wx.ALIGN_CENTER_HORIZONTAL, 1)
+		btnszr.Add(flszr, 0) #, wx.ALIGN_CENTER_HORIZONTAL, 1)
 
 		if len(self.settings.printers) > 0:	
 			octBox = wx.StaticBox(self, wx.ID_ANY, "  OctoPrint  ")
@@ -337,7 +337,7 @@ class GEditDlg(wx.Frame):
 			bsizer.Add(self.bDownloadFile, 0, wx.TOP + wx.BOTTOM, 10)
 			bsizer.AddSpacer(10)
 			btnszr.AddSpacer(20)
-			btnszr.Add(bsizer, 0, wx.ALIGN_CENTER_HORIZONTAL, 1)
+			btnszr.Add(bsizer, 0) #, wx.ALIGN_CENTER_HORIZONTAL, 1)
 
 		hszr = wx.BoxSizer(wx.HORIZONTAL)
 		hszr.AddSpacer(20)

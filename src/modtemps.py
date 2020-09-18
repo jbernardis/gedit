@@ -44,7 +44,7 @@ class ModifyTempsDlg(wx.Dialog):
 
 		b = wx.StaticBox(self, wx.ID_ANY, "Bed Temperature Delta")
 		sbox = wx.StaticBoxSizer(b, wx.VERTICAL)
-		sbox.Add(self.modBed, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+		sbox.Add(self.modBed, 0, wx.ALL|wx.EXPAND, 5)
 		slidesizer.Add(sbox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 		
 		self.bedTemp = wx.StaticText(self, wx.ID_ANY, "")
@@ -63,7 +63,7 @@ class ModifyTempsDlg(wx.Dialog):
 	
 			b = wx.StaticBox(self, wx.ID_ANY, "Hot End %d Delta" % self.heX[he])
 			sbox = wx.StaticBoxSizer(b, wx.VERTICAL)
-			sbox.Add(self.modHE[he], 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+			sbox.Add(self.modHE[he], 0, wx.ALL|wx.EXPAND, 5)
 			slidesizer.Add(sbox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 	
 			self.heTemp[he] = wx.StaticText(self, wx.ID_ANY, "")

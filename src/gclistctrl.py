@@ -29,10 +29,10 @@ class GcodeListCtrl(wx.ListCtrl):
 		self.bracketEnd = None
 		self.selectedExists = False
 		
-		self.attrEven = wx.ListItemAttr()
+		self.attrEven = wx.ItemAttr()
 		self.attrEven.SetBackgroundColour(wx.Colour(255, 255, 255))
 
-		self.attrOdd = wx.ListItemAttr()
+		self.attrOdd = wx.ItemAttr()
 		self.attrOdd.SetBackgroundColour(wx.Colour(220, 220, 220))
 		
 		self.il = wx.ImageList(16, 16)

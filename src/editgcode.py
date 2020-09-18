@@ -232,7 +232,7 @@ class EditGCodeDlg(wx.Dialog):
 		self.stPosition.SetFont(self.font12bold)
 		btnsizer.Add(self.stPosition)
 		
-		box.Add(btnsizer, 0, wx.ALIGN_CENTER_VERTICAL|wx.ALL, 5)
+		box.Add(btnsizer, 0, wx.ALL, 5)
 		self.Layout()
 		
 	def showRowCol(self, row, col):

@@ -22,7 +22,7 @@ class ModifySpeedDlg(wx.Dialog):
 
 		b = wx.StaticBox(self, wx.ID_ANY, "Extrusion Speed Percent")
 		sbox = wx.StaticBoxSizer(b, wx.VERTICAL)
-		sbox.Add(self.modExt, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+		sbox.Add(self.modExt, 0, wx.ALL|wx.EXPAND, 5)
 		slidesizer.Add(sbox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 		
 		self.modMove = wx.Slider(
@@ -34,7 +34,7 @@ class ModifySpeedDlg(wx.Dialog):
 
 		b = wx.StaticBox(self, wx.ID_ANY, "Movement Speed Percent")
 		sbox = wx.StaticBoxSizer(b, wx.VERTICAL)
-		sbox.Add(self.modMove, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+		sbox.Add(self.modMove, 0, wx.ALL|wx.EXPAND, 5)
 		slidesizer.Add(sbox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
 		self.btnOK = wx.Button(self, wx.ID_OK)

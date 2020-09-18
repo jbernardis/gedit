@@ -29,8 +29,8 @@ class DownloadSourceDlg(wx.Dialog):
 		
 		sizer.AddSpacer(20)
 		sizer.Add(wx.StaticText(self, wx.ID_ANY, "Choose a file:"),
-				0, wx.ALIGN_CENTER_VERTICAL|wx.ALIGN_LEFT|wx.LEFT, 10)
-		sizer.Add(self.ch, 0, wx.ALIGN_CENTER_VERTICAL|wx.ALIGN_CENTER_HORIZONTAL|wx.LEFT|wx.RIGHT, 10)
+				0, wx.ALIGN_LEFT|wx.LEFT, 10)
+		sizer.Add(self.ch, 0, wx.ALIGN_CENTER_HORIZONTAL|wx.LEFT|wx.RIGHT, 10)
 		sizer.AddSpacer(20)
 	
 		btn = wx.BitmapButton(self, wx.ID_ANY, self.parent.images.pngOk, size=BUTTONDIM)
@@ -45,7 +45,7 @@ class DownloadSourceDlg(wx.Dialog):
 		btnsizer.Add(btn)
 		self.Bind(wx.EVT_BUTTON, self.onCancel, btn)
 
-		sizer.Add(btnsizer, 0, wx.ALIGN_CENTER_VERTICAL|wx.ALIGN_CENTER_HORIZONTAL|wx.ALL, 5)
+		sizer.Add(btnsizer, 0, wx.ALIGN_CENTER_HORIZONTAL|wx.ALL, 5)
 		sizer.AddSpacer(20)
 
 		self.SetSizer(sizer)

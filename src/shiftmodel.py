@@ -29,7 +29,7 @@ class ShiftModelDlg(wx.Dialog):
 
 		b = wx.StaticBox(self, wx.ID_ANY, "X Axis")
 		sbox = wx.StaticBoxSizer(b, wx.VERTICAL)
-		sbox.Add(self.slideX, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+		sbox.Add(self.slideX, 0, wx.ALL|wx.EXPAND, 5)
 		slidesizer.Add(sbox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 		
 		self.slideY = wx.Slider(
@@ -41,8 +41,8 @@ class ShiftModelDlg(wx.Dialog):
 
 		b = wx.StaticBox(self, wx.ID_ANY, "Y Axis")
 		sbox = wx.StaticBoxSizer(b, wx.VERTICAL)
-		sbox.Add(self.slideY, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
-		slidesizer.Add(sbox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
+		sbox.Add(self.slideY, 0, wx.ALL|wx.EXPAND, 5)
+		slidesizer.Add(sbox, 0, wx.ALL|wx.EXPAND, 5)
 		
 		btn = wx.Button(self, wx.ID_OK)
 		btn.SetHelpText("Save the changes")
@@ -55,7 +55,7 @@ class ShiftModelDlg(wx.Dialog):
 		btnsizer.Realize()
 
 		sizer.Add(slidesizer, 0, wx.ALIGN_CENTER_HORIZONTAL|wx.ALL, 5)
-		sizer.Add(btnsizer, 0, wx.ALIGN_CENTER_VERTICAL|wx.ALIGN_CENTER_HORIZONTAL|wx.ALL, 5)
+		sizer.Add(btnsizer, 0, wx.ALIGN_CENTER_HORIZONTAL|wx.ALL, 5)
 
 		self.SetSizer(sizer)
 		sizer.Fit(self)
